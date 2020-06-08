@@ -119,7 +119,7 @@ func (ec *esClient) SetSendRequestFn(fn FnEsSendRequest) {
 }
 
 func sendEsRequest(cluster, namespace string, payload *EsRequest, client k8sclient.Client) {
-	urlString := fmt.Sprintf("https://%s.%s.svc:9200/%s", cluster, namespace, payload.URI)
+	urlString := fmt.Sprintf("https://%s.%s.svc:60000/%s", cluster, namespace, payload.URI)
 	urlURL, err := url.Parse(urlString)
 
 	if err != nil {
@@ -196,7 +196,7 @@ func sendEsRequest(cluster, namespace string, payload *EsRequest, client k8sclie
 
 func sendRequestWithOldClient(clusterName, namespace string, payload *EsRequest, client client.Client) {
 
-	urlString := fmt.Sprintf("https://%s.%s.svc:9200/%s", clusterName, namespace, payload.URI)
+	urlString := fmt.Sprintf("https://%s.%s.svc:60000/%s", clusterName, namespace, payload.URI)
 	urlURL, err := url.Parse(urlString)
 
 	if err != nil {

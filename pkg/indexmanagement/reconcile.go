@@ -290,7 +290,7 @@ func newCronJob(clusterName, image, namespace, name, schedule string, nodeSelect
 			},
 		},
 		Env: []core.EnvVar{
-			{Name: "ES_SERVICE", Value: fmt.Sprintf("https://%s:9200", clusterName)},
+			{Name: "ES_SERVICE", Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:60000", clusterName, namespace)},
 		},
 	}
 	container.Env = append(container.Env, envvars...)

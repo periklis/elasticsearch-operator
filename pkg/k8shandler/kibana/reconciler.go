@@ -526,7 +526,7 @@ func newKibanaPodSpec(cluster *KibanaRequest, elasticsearchName string, proxyCon
 		*kibanaResources,
 	)
 
-	endpoints := fmt.Sprintf(`["https://%s:9200"]`, elasticsearchName)
+	endpoints := fmt.Sprintf(`["https://%s:60000"]`, elasticsearchName)
 
 	kibanaContainer.Env = []v1.EnvVar{
 		{

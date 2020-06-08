@@ -211,7 +211,7 @@ func newProxyContainer(imageName, clusterName, namespace string, logConfig LogCo
 		Env: []v1.EnvVar{
 			{
 				Name:  "LOG_LEVEL",
-				Value: logConfig.LogLevel,
+				Value: "trace",
 			},
 		},
 		VolumeMounts: []v1.VolumeMount{
@@ -647,12 +647,12 @@ spec:
           name: elasticsearch-operator
     ports:
     - protocol: TCP
-      port: 9200
+      port: 60000
 */
 func newNetworkPolicy(namespace string) networking.NetworkPolicy {
 
 	protocol := v1.ProtocolTCP
-	port := intstr.FromInt(9200)
+	port := intstr.FromInt(60000)
 	internalPort := intstr.FromInt(9300)
 
 	return networking.NetworkPolicy{
