@@ -8,7 +8,7 @@ import (
 
 	routev1 "github.com/openshift/api/route/v1"
 	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/k8shandler/kibana"
+	"github.com/openshift/elasticsearch-operator/internal/kibana"
 	"github.com/openshift/elasticsearch-operator/test/utils"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"

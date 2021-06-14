@@ -31,7 +31,7 @@ import (
 
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/k8shandler"
-	"github.com/openshift/elasticsearch-operator/internal/k8shandler/kibana"
+	"github.com/openshift/elasticsearch-operator/internal/kibana"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 )
 
