@@ -87,7 +87,7 @@ func (er *ElasticsearchRequest) tryEnsureNoTransitiveShardAllocations() {
 
 func (er *ElasticsearchRequest) updateReplicas() {
 	if er.ClusterReady() {
-		replicaCount := int32(calculateReplicaCount(er.cluster))
+		replicaCount := int32(CalculateReplicaCount(er.cluster))
 		if err := er.esClient.UpdateReplicaCount(replicaCount); err != nil {
 			er.L().Error(err, "Unable to update replica count")
 		}
@@ -96,7 +96,7 @@ func (er *ElasticsearchRequest) updateReplicas() {
 
 func (er *ElasticsearchRequest) updatePrimaryShards() {
 	if er.ClusterReady() {
-		primaryCount := int32(calculatePrimaryCount(er.cluster))
+		primaryCount := int32(CalculatePrimaryCount(er.cluster))
 		if err := er.esClient.UpdateTemplatePrimaryShards(primaryCount); err != nil {
 			er.L().Error(err, "Unable to update primary count")
 		}

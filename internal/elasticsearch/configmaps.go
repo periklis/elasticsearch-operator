@@ -107,7 +107,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateConfigMaps() (err error) {
 	if err != nil {
 		return err
 	}
-	dataNodeCount := int(getDataCount(dpl))
+	dataNodeCount := int(GetDataCount(dpl))
 	masterNodeCount := int(getMasterCount(dpl))
 
 	logConfig := getLogConfig(dpl.GetAnnotations())
@@ -120,8 +120,8 @@ func (er *ElasticsearchRequest) CreateOrUpdateConfigMaps() (err error) {
 		esUnicastHost(dpl.Name, dpl.Namespace),
 		strconv.Itoa(masterNodeCount/2+1),
 		strconv.Itoa(dataNodeCount),
-		strconv.Itoa(calculatePrimaryCount(dpl)),
-		strconv.Itoa(calculateReplicaCount(dpl)),
+		strconv.Itoa(CalculatePrimaryCount(dpl)),
+		strconv.Itoa(CalculateReplicaCount(dpl)),
 		strconv.FormatBool(runtime.GOARCH == "amd64"),
 		logConfig,
 	)

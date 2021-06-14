@@ -29,8 +29,8 @@ import (
 	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/kibana"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 )

@@ -289,7 +289,7 @@ func TestValidReplicaCount(t *testing.T) {
 		},
 	}
 
-	rc := calculateReplicaCount(esCR)
+	rc := CalculateReplicaCount(esCR)
 
 	// FullRedundancy = dataNodeCount - 1
 	if rc != dataNodeCount-1 {
@@ -311,7 +311,7 @@ func TestNoReplicaCount(t *testing.T) {
 		},
 	}
 
-	rc := calculateReplicaCount(esCR)
+	rc := CalculateReplicaCount(esCR)
 
 	// we default to 1
 	if rc != 1 {
@@ -333,7 +333,7 @@ func TestSingleNodeNoReplicaCount(t *testing.T) {
 		},
 	}
 
-	rc := calculateReplicaCount(esCR)
+	rc := CalculateReplicaCount(esCR)
 
 	if rc != 0 {
 		t.Errorf("Expected ZeroRedundancy, when no policy is specified and cluster has only 1 data node, got %d replica shards", rc)

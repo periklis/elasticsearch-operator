@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/openshift/elasticsearch-operator/internal/indexmanagement"
 	"github.com/openshift/elasticsearch-operator/internal/metrics"
 
 	"github.com/ViaQ/logerr/log"
@@ -82,6 +83,10 @@ func (r *ElasticsearchReconciler) Reconcile(request ctrl.Request) (ctrl.Result, 
 	}
 
 	if err = elasticsearch.Reconcile(cluster, r.Client); err != nil {
+		return reconcileResult, err
+	}
+
+	if err = indexmanagement.Reconcile(cluster, r.Client); err != nil {
 		return reconcileResult, err
 	}
 

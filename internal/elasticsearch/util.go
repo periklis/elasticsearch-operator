@@ -164,7 +164,7 @@ func getMasterCount(dpl *api.Elasticsearch) int32 {
 	return masterCount
 }
 
-func getDataCount(dpl *api.Elasticsearch) int32 {
+func GetDataCount(dpl *api.Elasticsearch) int32 {
 	dataCount := int32(0)
 	for _, node := range dpl.Spec.Nodes {
 		if isDataNode(node) {
@@ -188,12 +188,12 @@ func isValidDataCount(dpl *api.Elasticsearch) bool {
 		return true
 	}
 
-	dataCount := int(getDataCount(dpl))
+	dataCount := int(GetDataCount(dpl))
 	return dataCount > 0
 }
 
 func isValidRedundancyPolicy(dpl *api.Elasticsearch) bool {
-	dataCount := int(getDataCount(dpl))
+	dataCount := int(GetDataCount(dpl))
 
 	switch dpl.Spec.RedundancyPolicy {
 	case api.ZeroRedundancy:
@@ -224,7 +224,7 @@ func (er *ElasticsearchRequest) isValidScaleDownRate() (bool, error) {
 	}
 
 	// determine number of (data) nodes based on the CR
-	requestedDataCount := getDataCount(er.cluster)
+	requestedDataCount := GetDataCount(er.cluster)
 
 	rate := currentDataCount - requestedDataCount
 

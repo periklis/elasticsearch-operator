@@ -38,7 +38,7 @@ var _ = Describe("defaults", func() {
 			}
 		})
 		It("should return maxPrimaryShardCount", func() {
-			Expect(calculatePrimaryCount(dpl)).To(Equal(maxPrimaryShardCount))
+			Expect(CalculatePrimaryCount(dpl)).To(Equal(maxPrimaryShardCount))
 		})
 	})
 
@@ -56,7 +56,7 @@ var _ = Describe("defaults", func() {
 			}
 		})
 		It("should return data node count", func() {
-			Expect(calculatePrimaryCount(dpl)).To(Equal(dataNodeCount))
+			Expect(CalculatePrimaryCount(dpl)).To(Equal(dataNodeCount))
 		})
 	})
 })

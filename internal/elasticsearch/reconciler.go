@@ -209,15 +209,14 @@ func Reconcile(requestCluster *elasticsearchv1.Elasticsearch, requestClient clie
 		degradedCondition = true
 	}
 
-	// Ensure index management is in place
-	if err := elasticsearchRequest.CreateOrUpdateIndexManagement(); err != nil {
-		return kverrors.Wrap(err, "Failed to reconcile IndexMangement for Elasticsearch cluster")
-	}
-
 	if !degradedCondition {
 		if err := elasticsearchRequest.UpdateDegradedCondition(false, "", ""); err != nil {
 			elasticsearchRequest.ll.Error(err, "Unable to remove Degraded condition")
 		}
+	}
+
+	if !elasticsearchRequest.AnyNodeReady() {
+		return kverrors.New("none elasticsearch cluster nodes ready yet")
 	}
 
 	return nil

@@ -49,8 +49,8 @@ func esUnicastHost(clusterName, namespace string) string {
 	return fmt.Sprintf("%v-cluster.%v.svc", clusterName, namespace)
 }
 
-func calculatePrimaryCount(dpl *api.Elasticsearch) int {
-	dataNodeCount := int(getDataCount(dpl))
+func CalculatePrimaryCount(dpl *api.Elasticsearch) int {
+	dataNodeCount := int(GetDataCount(dpl))
 	if dataNodeCount > maxPrimaryShardCount {
 		return maxPrimaryShardCount
 	}
@@ -60,8 +60,8 @@ func calculatePrimaryCount(dpl *api.Elasticsearch) int {
 	return dataNodeCount
 }
 
-func calculateReplicaCount(dpl *api.Elasticsearch) int {
-	dataNodeCount := int(getDataCount(dpl))
+func CalculateReplicaCount(dpl *api.Elasticsearch) int {
+	dataNodeCount := int(GetDataCount(dpl))
 	repType := dpl.Spec.RedundancyPolicy
 	switch repType {
 	case api.FullRedundancy:

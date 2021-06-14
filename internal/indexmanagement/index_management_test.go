@@ -1,4 +1,4 @@
-package elasticsearch
+package indexmanagement
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ var _ = Describe("Index Management", func() {
 			Name:    "node.infra",
 			Aliases: []string{"infra"},
 		}
-		request = &ElasticsearchRequest{
+		request = &IndexManagementRequest{
 			client: fake.NewFakeClient(),
 			cluster: &elasticsearch.Elasticsearch{
 				ObjectMeta: metav1.ObjectMeta{
@@ -43,7 +43,7 @@ var _ = Describe("Index Management", func() {
 	Describe("#CreateOrUpdateIndexManagement", func() {
 		Context("when IndexManagement is not spec'd", func() {
 			It("should process the resource as a noop", func() {
-				Expect(request.CreateOrUpdateIndexManagement()).To(BeNil())
+				Expect(request.createOrUpdateIndexManagement()).To(BeNil())
 			})
 		})
 	})
