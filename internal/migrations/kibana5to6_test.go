@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -18,7 +18,7 @@ var _ = Describe("Migrating", func() {
 
 	var (
 		chatter   *helpers.FakeElasticsearchChatter
-		client    elasticsearch.Client
+		client    esclient.Client
 		k8sClient = fake.NewFakeClient()
 	)
 

@@ -12,9 +12,9 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	kibana "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/k8shandler"
-	"github.com/openshift/elasticsearch-operator/internal/k8shandler/migrations"
+	"github.com/openshift/elasticsearch-operator/internal/migrations"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -39,7 +39,7 @@ var kibanaServiceAccountAnnotations = map[string]string{
 	"serviceaccounts.openshift.io/oauth-redirectreference.first": kibanaOAuthRedirectReference,
 }
 
-func Reconcile(requestCluster *kibana.Kibana, requestClient client.Client, esClient elasticsearch.Client, proxyConfig *configv1.Proxy, eoManagedCerts bool, ownerRef metav1.OwnerReference) error {
+func Reconcile(requestCluster *kibana.Kibana, requestClient client.Client, esClient esclient.Client, proxyConfig *configv1.Proxy, eoManagedCerts bool, ownerRef metav1.OwnerReference) error {
 	clusterKibanaRequest := KibanaRequest{
 		client:   requestClient,
 		cluster:  requestCluster,
@@ -62,7 +62,7 @@ func Reconcile(requestCluster *kibana.Kibana, requestClient client.Client, esCli
 		return err
 	}
 
-	if err := clusterKibanaRequest.CreateOrUpdateServiceAccount(kibanaServiceAccountName, &kibanaServiceAccountAnnotations); err != nil {
+	if err := clusterKibanaRequest.CreateOrUpdateServiceAccount(kibanaServiceAccountName, kibanaServiceAccountAnnotations); err != nil {
 		return err
 	}
 

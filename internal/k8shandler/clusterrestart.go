@@ -6,7 +6,7 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	v1 "k8s.io/api/core/v1"
 )
@@ -15,7 +15,7 @@ import (
 var ErrFlushShardsFailed = kverrors.New("flush shards failed")
 
 type ClusterRestart struct {
-	client           elasticsearch.Client
+	client           esclient.Client
 	clusterName      string
 	clusterNamespace string
 	scheduledNodes   []NodeTypeInterface

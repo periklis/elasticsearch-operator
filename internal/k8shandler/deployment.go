@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ViaQ/logerr/kverrors"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,10 +33,10 @@ type deploymentNode struct {
 
 	client client.Client
 
-	esClient elasticsearch.Client
+	esClient esclient.Client
 }
 
-func (node *deploymentNode) populateReference(nodeName string, n api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient elasticsearch.Client) {
+func (node *deploymentNode) populateReference(nodeName string, n api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient esclient.Client) {
 	labels := newLabels(cluster.Name, nodeName, roleMap)
 
 	deployment := apps.Deployment{

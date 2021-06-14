@@ -10,7 +10,7 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -87,7 +87,7 @@ var _ = Describe("Reconciling", func() {
 
 	Describe("Kibana", func() {
 		var client client.Client
-		var esClient elasticsearch.Client
+		var esClient esclient.Client
 
 		var (
 			consoleLink = &consolev1.ConsoleLink{
@@ -327,7 +327,7 @@ var _ = Describe("Reconciling", func() {
 	})
 })
 
-func newFakeEsClient(k8sClient client.Client, responses map[string]helpers.FakeElasticsearchResponses) elasticsearch.Client {
+func newFakeEsClient(k8sClient client.Client, responses map[string]helpers.FakeElasticsearchResponses) esclient.Client {
 	esChatter := helpers.NewFakeElasticsearchChatter(responses)
 	return helpers.NewFakeElasticsearchClient("elasticsearch", "test-namespace", k8sClient, esChatter)
 }

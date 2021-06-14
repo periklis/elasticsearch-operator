@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/openshift/elasticsearch-operator/internal/constants"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -13,7 +13,7 @@ import (
 func TestIndexIsNotBlocked(t *testing.T) {
 	var (
 		chatter   *helpers.FakeElasticsearchChatter
-		client    elasticsearch.Client
+		client    esclient.Client
 		k8sClient = fake.NewFakeClient()
 	)
 
@@ -54,7 +54,7 @@ func TestIndexIsNotBlocked(t *testing.T) {
 func TestIndexIsBlocked(t *testing.T) {
 	var (
 		chatter   *helpers.FakeElasticsearchChatter
-		client    elasticsearch.Client
+		client    esclient.Client
 		k8sClient = fake.NewFakeClient()
 	)
 
@@ -95,7 +95,7 @@ func TestIndexIsBlocked(t *testing.T) {
 func TestCreateSettingToUnblock(t *testing.T) {
 	var (
 		chatter   *helpers.FakeElasticsearchChatter
-		client    elasticsearch.Client
+		client    esclient.Client
 		k8sClient = fake.NewFakeClient()
 	)
 

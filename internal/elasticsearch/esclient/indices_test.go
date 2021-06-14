@@ -1,4 +1,4 @@
-package elasticsearch_test
+package esclient_test
 
 import (
 	"testing"

@@ -6,7 +6,7 @@ import (
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/go-logr/logr"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/ViaQ/logerr/log"
@@ -34,7 +34,7 @@ type statefulSetNode struct {
 
 	client client.Client
 
-	esClient elasticsearch.Client
+	esClient esclient.Client
 
 	l logr.Logger
 }
@@ -49,7 +49,7 @@ func (n *statefulSetNode) L() logr.Logger {
 	return n.l
 }
 
-func (n *statefulSetNode) populateReference(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient elasticsearch.Client) {
+func (n *statefulSetNode) populateReference(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient esclient.Client) {
 	labels := newLabels(cluster.Name, nodeName, roleMap)
 
 	statefulSet := apps.StatefulSet{

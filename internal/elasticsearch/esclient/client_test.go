@@ -1,11 +1,11 @@
-package elasticsearch
+package esclient
 
 import (
 	"testing"
 )
 
 func TestHeaderGenEmptyToken(t *testing.T) {
-	tokenFile := "../../test/files/emptyToken"
+	tokenFile := "../../../test/files/emptyToken"
 
 	_, ok := readSAToken(tokenFile)
 
@@ -15,7 +15,7 @@ func TestHeaderGenEmptyToken(t *testing.T) {
 }
 
 func TestHeaderGenWithToken(t *testing.T) {
-	tokenFile := "../../test/files/testToken"
+	tokenFile := "../../../test/files/testToken"
 
 	expected := "test\n"
 
@@ -31,7 +31,7 @@ func TestHeaderGenWithToken(t *testing.T) {
 }
 
 func TestHeaderGenWithNoToken(t *testing.T) {
-	tokenFile := "../../test/files/errorToken"
+	tokenFile := "../../../test/files/errorToken"
 
 	_, ok := readSAToken(tokenFile)
 

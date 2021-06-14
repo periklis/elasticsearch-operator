@@ -2,7 +2,7 @@ package migrations
 
 import (
 	"github.com/ViaQ/logerr/kverrors"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	estypes "github.com/openshift/elasticsearch-operator/internal/types/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,7 +13,7 @@ type MigrationRequest interface {
 	RunElasticsearchMigrations() error
 }
 
-func NewMigrationRequest(client client.Client, esClient elasticsearch.Client) MigrationRequest {
+func NewMigrationRequest(client client.Client, esClient esclient.Client) MigrationRequest {
 	return &migrationRequest{
 		client:   client,
 		esClient: esClient,
@@ -22,7 +22,7 @@ func NewMigrationRequest(client client.Client, esClient elasticsearch.Client) Mi
 
 type migrationRequest struct {
 	client   client.Client
-	esClient elasticsearch.Client
+	esClient esclient.Client
 }
 
 func (mr *migrationRequest) RunKibanaMigrations() error {

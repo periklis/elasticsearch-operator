@@ -29,7 +29,7 @@ import (
 	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/k8shandler"
 	"github.com/openshift/elasticsearch-operator/internal/kibana"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
@@ -102,7 +102,7 @@ func (r *KibanaReconciler) Reconcile(request ctrl.Request) (ctrl.Result, error) 
 		}
 	}
 
-	esClient := elasticsearch.NewClient(es.Name, es.Namespace, r.Client)
+	esClient := esclient.NewClient(es.Name, es.Namespace, r.Client)
 	proxyCfg, err := kibana.GetProxyConfig(r.Client)
 	if err != nil {
 		return reconcile.Result{}, err

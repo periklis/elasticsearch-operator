@@ -1,4 +1,4 @@
-package elasticsearch
+package esclient
 
 import (
 	"encoding/json"

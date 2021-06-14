@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	elasticsearchv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +16,7 @@ func TestDiskUtilizationBelowFloodWatermark(t *testing.T) {
 	nodes = map[string][]NodeTypeInterface{}
 	var (
 		chatter   *helpers.FakeElasticsearchChatter
-		client    elasticsearch.Client
+		client    esclient.Client
 		k8sClient = fake.NewFakeClient()
 		cluster   = &elasticsearchv1.Elasticsearch{
 			ObjectMeta: metav1.ObjectMeta{

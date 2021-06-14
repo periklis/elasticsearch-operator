@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -13,7 +13,7 @@ import (
 type NodeTypeInterface interface {
 	state() api.ElasticsearchNodeStatus // this will get the current -- used for status
 	updateReference(node NodeTypeInterface)
-	populateReference(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient elasticsearch.Client)
+	populateReference(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient esclient.Client)
 
 	create() error // this will create the node in the case where it is new
 	isMissing() bool
@@ -80,7 +80,7 @@ func addDataNodeSuffix(nodeName string, replicaNumber int32) string {
 }
 
 // newDeploymentNode constructs deploymentNode struct for data nodes
-func newDeploymentNode(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, client client.Client, esClient elasticsearch.Client) NodeTypeInterface {
+func newDeploymentNode(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, client client.Client, esClient esclient.Client) NodeTypeInterface {
 	deploymentNode := deploymentNode{}
 
 	deploymentNode.populateReference(nodeName, node, cluster, roleMap, int32(1), client, esClient)
@@ -89,7 +89,7 @@ func newDeploymentNode(nodeName string, node api.ElasticsearchNode, cluster *api
 }
 
 // newStatefulSetNode constructs statefulSetNode struct for non-data nodes
-func newStatefulSetNode(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, client client.Client, esClient elasticsearch.Client) NodeTypeInterface {
+func newStatefulSetNode(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, client client.Client, esClient esclient.Client) NodeTypeInterface {
 	statefulSetNode := statefulSetNode{}
 
 	statefulSetNode.populateReference(nodeName, node, cluster, roleMap, node.NodeCount, client, esClient)

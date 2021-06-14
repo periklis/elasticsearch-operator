@@ -10,7 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	elasticsearchv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -20,7 +20,7 @@ import (
 type ElasticsearchRequest struct {
 	client   client.Client
 	cluster  *elasticsearchv1.Elasticsearch
-	esClient elasticsearch.Client
+	esClient esclient.Client
 	ll       logr.Logger
 }
 
@@ -118,7 +118,7 @@ func SecretReconcile(requestCluster *elasticsearchv1.Elasticsearch, requestClien
 }
 
 func Reconcile(requestCluster *elasticsearchv1.Elasticsearch, requestClient client.Client) error {
-	esClient := elasticsearch.NewClient(requestCluster.Name, requestCluster.Namespace, requestClient)
+	esClient := esclient.NewClient(requestCluster.Name, requestCluster.Namespace, requestClient)
 
 	elasticsearchRequest := ElasticsearchRequest{
 		client:   requestClient,

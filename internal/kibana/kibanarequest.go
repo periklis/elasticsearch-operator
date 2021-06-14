@@ -4,7 +4,7 @@ import (
 	"context"
 
 	kibana "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -14,7 +14,7 @@ import (
 type KibanaRequest struct {
 	client   client.Client
 	cluster  *kibana.Kibana
-	esClient elasticsearch.Client
+	esClient esclient.Client
 }
 
 // TODO: determine if this is even necessary
