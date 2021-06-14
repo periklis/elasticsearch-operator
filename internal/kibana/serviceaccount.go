@@ -25,13 +25,13 @@ func NewServiceAccount(accountName string, namespace string) *core.ServiceAccoun
 }
 
 // CreateOrUpdateServiceAccount creates or updates a ServiceAccount for logging with the given name
-func (clusterRequest *KibanaRequest) CreateOrUpdateServiceAccount(name string, annotations *map[string]string) error {
+func (clusterRequest *KibanaRequest) CreateOrUpdateServiceAccount(name string, annotations map[string]string) error {
 	serviceAccount := NewServiceAccount(name, clusterRequest.cluster.Namespace)
 	if annotations != nil {
 		if serviceAccount.GetObjectMeta().GetAnnotations() == nil {
 			serviceAccount.GetObjectMeta().SetAnnotations(make(map[string]string))
 		}
-		for key, value := range *annotations {
+		for key, value := range annotations {
 			serviceAccount.GetObjectMeta().GetAnnotations()[key] = value
 		}
 	}

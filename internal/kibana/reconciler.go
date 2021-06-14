@@ -12,8 +12,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	kibana "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
+	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
-	"github.com/openshift/elasticsearch-operator/internal/k8shandler"
 	"github.com/openshift/elasticsearch-operator/internal/migrations"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apps "k8s.io/api/apps/v1"
@@ -53,7 +53,7 @@ func Reconcile(requestCluster *kibana.Kibana, requestClient client.Client, esCli
 	}
 
 	if eoManagedCerts {
-		cr := k8shandler.NewCertificateRequest(ownerRef.Name, requestCluster.Namespace, ownerRef, requestClient)
+		cr := elasticsearch.NewCertificateRequest(ownerRef.Name, requestCluster.Namespace, ownerRef, requestClient)
 		cr.GenerateKibanaCerts(requestCluster.Name)
 	}
 
