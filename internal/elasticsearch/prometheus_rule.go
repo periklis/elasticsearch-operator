@@ -9,14 +9,11 @@ import (
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/prometheusrule"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	k8sYAML "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/util/retry"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -26,7 +23,6 @@ const (
 )
 
 func (er *ElasticsearchRequest) CreateOrUpdatePrometheusRules() error {
-	ctx := context.TODO()
 	dpl := er.cluster
 
 	name := fmt.Sprintf("%s-%s", dpl.Name, "prometheus-rules")
@@ -38,33 +34,21 @@ func (er *ElasticsearchRequest) CreateOrUpdatePrometheusRules() error {
 
 	dpl.AddOwnerRefTo(rule)
 
-	err = er.client.Create(ctx, rule)
-	if err == nil {
-		return nil
-	}
-	if !apierrors.IsAlreadyExists(err) {
-		return kverrors.Wrap(err, "failed to create prometheus rule", "rule", rule.Name)
-	}
-
-	current := &monitoringv1.PrometheusRule{}
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		err = er.client.Get(ctx, types.NamespacedName{Name: rule.Name, Namespace: rule.Namespace}, current)
-		if err != nil {
-			return err
-		}
-
-		current.Spec = rule.Spec
-		if err = er.client.Update(ctx, current); err != nil {
-			return err
-		}
-		return nil
-	})
-
-	if err == nil {
-		return nil
+	res, err := prometheusrule.CreateOrUpdate(context.TODO(), er.client, rule)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update elasticsearch prometheusrule",
+			"cluster", er.cluster.Name,
+			"namespace", er.cluster.Namespace,
+		)
 	}
 
-	return kverrors.Wrap(err, "failed to update prometheus rule", "rule", rule.Name)
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch prometheusrule: %s", res),
+		"prometheus_rule_name", rule.Name,
+		"cluster", er.cluster.Name,
+		"namespace", er.cluster.Namespace,
+	)
+
+	return nil
 }
 
 func buildPrometheusRule(ruleName string, namespace string, labels map[string]string) (*monitoringv1.PrometheusRule, error) {
@@ -79,25 +63,8 @@ func buildPrometheusRule(ruleName string, namespace string, labels map[string]st
 
 	alertsRuleSpec.Groups = append(alertsRuleSpec.Groups, rulesRuleSpec.Groups...)
 
-	rule := prometheusRule(ruleName, namespace, labels)
-	rule.Spec = *alertsRuleSpec
-
+	rule := prometheusrule.New(ruleName, namespace, labels, alertsRuleSpec.Groups)
 	return rule, nil
-}
-
-func prometheusRule(ruleName, namespace string, labels map[string]string) *monitoringv1.PrometheusRule {
-	return &monitoringv1.PrometheusRule{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       monitoringv1.PrometheusRuleKind,
-			APIVersion: monitoringv1.SchemeGroupVersion.String(),
-		},
-
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ruleName,
-			Namespace: namespace,
-			Labels:    labels,
-		},
-	}
 }
 
 func ruleSpec(fileName, filePath string) (*monitoringv1.PrometheusRuleSpec, error) {
