@@ -8,19 +8,20 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	kibana "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/service"
 	"github.com/openshift/elasticsearch-operator/internal/migrations"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -453,25 +454,36 @@ func updateCurrentDeploymentEnvIfDifferent(current *apps.Deployment, desired *ap
 }
 
 func (clusterRequest *KibanaRequest) createOrUpdateKibanaService() error {
-	kibanaService := NewService(
-		"kibana",
-		clusterRequest.cluster.Namespace,
-		"kibana",
-		[]v1.ServicePort{
-			{Port: 443, TargetPort: intstr.IntOrString{
-				Type:   intstr.String,
-				StrVal: "oaproxy",
-			}},
-		})
+	labels := map[string]string{
+		"logging-infra": "support",
+	}
 
-	utils.AddOwnerRefToObject(kibanaService, getOwnerRef(clusterRequest.cluster))
+	svc := service.New("kibana", clusterRequest.cluster.Namespace, labels).
+		WithSelector(map[string]string{
+			"component": "kibana",
+			"provider":  "openshift",
+		}).
+		WithServicePorts(v1.ServicePort{
+			Port:       443,
+			TargetPort: intstr.FromString("oaproxy"),
+		}).
+		Build()
 
-	err := clusterRequest.Create(kibanaService)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return kverrors.Wrap(err, "failure constructing Kibana service",
+	utils.AddOwnerRefToObject(svc, getOwnerRef(clusterRequest.cluster))
+
+	res, err := service.CreateOrUpdate(context.TODO(), clusterRequest.client, svc, service.Compare, service.Mutate)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update kibana service",
 			"cluster", clusterRequest.cluster.Name,
+			"namespace", clusterRequest.cluster.Namespace,
 		)
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled kibana service: %s", res),
+		"service_name", svc.Name,
+		"cluster", clusterRequest.cluster.Name,
+		"namespace", clusterRequest.cluster.Namespace,
+	)
 
 	return nil
 }

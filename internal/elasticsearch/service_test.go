@@ -313,8 +313,6 @@ func TestCreateOrUpdateServices(t *testing.T) {
 		test := test
 
 		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
-
 			client := fake.NewFakeClient(test.objs...)
 
 			req := &ElasticsearchRequest{
