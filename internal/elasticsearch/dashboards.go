@@ -2,14 +2,14 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
-	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,35 +26,50 @@ func (er *ElasticsearchRequest) CreateOrUpdateDashboards() error {
 	if err != nil {
 		return kverrors.Wrap(err, "failed to read dashboard file", "filePath", defaultElasticDashboardFile)
 	}
-	cm := &v1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: v1.SchemeGroupVersion.String(),
+	cm := configmap.New(
+		grafanaCMName,
+		grafanaCMNameSpace,
+		map[string]string{
+			"console.openshift.io/dashboard": "true",
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      grafanaCMName,
-			Namespace: grafanaCMNameSpace,
-			Labels: map[string]string{
-				"console.openshift.io/dashboard": "true",
-			},
-		},
-		Data: map[string]string{
+		map[string]string{
 			"openshift-elasticsearch.json": string(b),
 		},
+	)
+
+	key := client.ObjectKey{Name: grafanaCMName, Namespace: grafanaCMNameSpace}
+	err = configmap.Delete(context.TODO(), er.client, key)
+	if err != nil && !apierrors.IsNotFound(kverrors.Root(err)) {
+		return kverrors.Wrap(err, "failed to delete elasticsearch dashboard config map",
+			"cluster", er.cluster.Name,
+			"namespace", er.cluster.Namespace,
+		)
 	}
 
-	return er.CreateOrUpdateConfigMap(cm)
+	res, err := configmap.Create(context.TODO(), er.client, cm)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create elasticsearch dashboard config map",
+			"cluster", er.cluster.Name,
+			"namespace", er.cluster.Namespace,
+		)
+	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch dashboard config map: %s", res),
+		"configmap_name", cm.Name,
+		"cluster", er.cluster.Name,
+		"namespace", er.cluster.Namespace,
+	)
+
+	return nil
 }
 
 // RemoveDashboardConfigMap removes the config map in the grafana dashboard
-func RemoveDashboardConfigMap(client client.Client) {
-	cm := getConfigmap(grafanaCMName, grafanaCMNameSpace, client)
-	if cm == nil {
-		return
-	}
-	err := client.Delete(context.TODO(), cm)
+func RemoveDashboardConfigMap(c client.Client) {
+	key := client.ObjectKey{Name: grafanaCMName, Namespace: grafanaCMNameSpace}
+
+	err := configmap.Delete(context.TODO(), c, key)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(kverrors.Root(err)) {
 			return
 		}
 		log.Error(err, "error deleting grafana configmap")

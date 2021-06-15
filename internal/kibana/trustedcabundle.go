@@ -1,11 +1,15 @@
 package kibana
 
 import (
+	"context"
+
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/status"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 /*
@@ -14,34 +18,36 @@ import (
  * Thus, we need the get the contents once again.
  */
 func (clusterRequest *KibanaRequest) createOrGetTrustedCABundleConfigMap(name string) (*corev1.ConfigMap, error) {
-	configMap := NewConfigMap(
+	configMap := configmap.New(
 		name,
 		clusterRequest.cluster.Namespace,
+		map[string]string{
+			constants.InjectTrustedCABundleLabel: "true",
+		},
 		map[string]string{
 			constants.TrustedCABundleKey: "",
 		},
 	)
-	configMap.ObjectMeta.Labels = make(map[string]string)
-	configMap.ObjectMeta.Labels[constants.InjectTrustedCABundleLabel] = "true"
 
 	utils.AddOwnerRefToObject(configMap, getOwnerRef(clusterRequest.cluster))
 
-	err := clusterRequest.Create(configMap)
-	if err == nil {
+	res, err := configmap.Create(context.TODO(), clusterRequest.client, configMap)
+	if res == status.OperationResultCreated {
 		return configMap, nil
 	}
-
-	if !apierrors.IsAlreadyExists(err) {
+	if err != nil {
 		return nil, kverrors.Wrap(err, "failed to create trusted CA bundle config map",
-			"configmap", name,
-			"cluster", clusterRequest.cluster.Name)
+			"cluster", clusterRequest.cluster.Name,
+		)
 	}
 
 	// Get the existing config map which may include an injected CA bundle
-	if err = clusterRequest.Get(configMap.Name, configMap); err != nil {
+	key := client.ObjectKey{Name: name, Namespace: clusterRequest.cluster.Namespace}
+	configMap, err = configmap.Get(context.TODO(), clusterRequest.client, key)
+	if err != nil {
 		return nil, kverrors.Wrap(err, "failed to get trusted CA bundle config map",
-			"configmap", name,
-			"cluster", clusterRequest.cluster.Name)
+			"cluster", clusterRequest.cluster.Name,
+		)
 	}
 	return configMap, nil
 }

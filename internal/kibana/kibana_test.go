@@ -11,6 +11,7 @@ import (
 	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -162,9 +163,10 @@ var _ = Describe("Reconciling", func() {
 
 		Context("when updating kibana on an existing cluster", func() {
 			var (
-				sharingConfigMap = NewConfigMap(
+				sharingConfigMap = configmap.New(
 					"sharing-config",
 					cluster.GetNamespace(),
+					map[string]string{},
 					map[string]string{
 						"kibanaAppURL":   "https://",
 						"kibanaInfraURL": "https://",

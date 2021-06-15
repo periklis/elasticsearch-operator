@@ -28,8 +28,8 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
 	esapi "github.com/openshift/elasticsearch-operator/internal/types/elasticsearch"
-	"github.com/openshift/elasticsearch-operator/internal/types/k8s"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 )
@@ -246,34 +246,23 @@ func (imr *IndexManagementRequest) removeCronJobsForMappings(mappings []apis.Ind
 
 func createOrUpdateCurationConfigmap(apiclient client.Client, cluster *apis.Elasticsearch) error {
 	data := scriptMap
-	desired := k8s.NewConfigMap(indexManagementConfigmap, cluster.Namespace, imLabels, data)
+	desired := configmap.New(indexManagementConfigmap, cluster.Namespace, imLabels, data)
 	cluster.AddOwnerRefTo(desired)
 
-	errCtx := kverrors.NewContext("configmap", desired.Name,
+	res, err := configmap.CreateOrUpdate(context.TODO(), apiclient, desired, configmap.CompareDataOnly, configmap.MutateDataOnly)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update index management configmap",
+			"cluster", cluster.Name,
+			"namespace", cluster.Namespace,
+		)
+	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled index management config map: %s", res),
+		"configmap_name", desired.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,
 	)
-
-	err := apiclient.Create(context.TODO(), desired)
-	if err == nil {
-		return nil
-	}
-	if !apierrors.IsAlreadyExists(err) {
-		return errCtx.Wrap(err, "failed to create cluster configmap")
-	}
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &corev1.ConfigMap{}
-		retryError := apiclient.Get(context.TODO(), types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, current)
-		if retryError != nil {
-			return retryError
-		}
-		if !reflect.DeepEqual(desired.Data, current.Data) {
-			current.Data = desired.Data
-			return apiclient.Update(context.TODO(), current)
-		}
-		return nil
-	})
-	return errCtx.Wrap(err, "failed to update configmap")
+	return nil
 }
 
 func (imr *IndexManagementRequest) reconcileIndexManagementCronjob(policy apis.IndexManagementPolicySpec, mapping apis.IndexManagementPolicyMappingSpec, primaryShards int32) error {

@@ -1,6 +1,7 @@
 package kibana
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -8,9 +9,11 @@ import (
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	consolev1 "github.com/openshift/api/console/v1"
 	route "github.com/openshift/api/route/v1"
@@ -272,11 +275,11 @@ func (clusterRequest *KibanaRequest) removeSharedConfigMapPre45x() error {
 	errCtx := kverrors.NewContext("namespace", cluster.Namespace,
 		"cluster", cluster.Name)
 
-	sharedConfig := NewConfigMap("sharing-config", cluster.GetNamespace(), map[string]string{})
-	err := clusterRequest.Delete(sharedConfig)
+	sharedConfigKey := client.ObjectKey{Name: "sharing-config", Namespace: cluster.GetNamespace()}
+	err := configmap.Delete(context.TODO(), clusterRequest.client, sharedConfigKey)
 	if err != nil && !apierrors.IsNotFound(kverrors.Root(err)) {
 		return kverrors.Wrap(err, "failed to delete Kibana route shared config",
-			append(errCtx, "configmap", sharedConfig.Name)...)
+			append(errCtx, "configmap", sharedConfigKey.Name)...)
 	}
 
 	sharedRole := NewRole("sharing-config-reader", cluster.Namespace, nil)
