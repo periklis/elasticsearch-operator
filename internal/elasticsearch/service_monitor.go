@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/ViaQ/logerr/kverrors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/servicemonitor"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -23,62 +25,54 @@ func (er *ElasticsearchRequest) CreateOrUpdateServiceMonitors() error {
 	labelsWithDefault := appendDefaultLabel(dpl.Name, dpl.Labels)
 	labelsWithDefault["scrape-metrics"] = "enabled"
 
-	elasticsearchScMonitor := createServiceMonitor(serviceMonitorName, dpl.Name, dpl.Namespace, labelsWithDefault)
-	dpl.AddOwnerRefTo(elasticsearchScMonitor)
-
-	err := er.client.Create(context.TODO(), elasticsearchScMonitor)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return kverrors.Wrap(err, "failed to construct Elasticsearch ServiceMonitor")
-	}
-
-	return nil
-}
-
-func createServiceMonitor(serviceMonitorName, clusterName, namespace string, labels map[string]string) *monitoringv1.ServiceMonitor {
-	svcMonitor := serviceMonitor(serviceMonitorName, namespace, labels)
-	labelSelector := metav1.LabelSelector{
-		MatchLabels: labels,
-	}
 	tlsConfig := monitoringv1.TLSConfig{
 		CAFile:     prometheusCAFile,
-		ServerName: fmt.Sprintf("%s-%s.%s.svc", clusterName, "metrics", namespace),
+		ServerName: fmt.Sprintf("%s-%s.%s.svc", dpl.Name, "metrics", dpl.Namespace),
 		// ServerName can be e.g. elasticsearch-metrics.openshift-logging.svc
 	}
-	proxy := monitoringv1.Endpoint{
-		Port:            clusterName,
-		Path:            "/metrics",
-		Scheme:          "https",
-		BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-		TLSConfig:       &tlsConfig,
-	}
-	elasticsearch := monitoringv1.Endpoint{
-		Port:            clusterName,
-		Path:            "/_prometheus/metrics",
-		Scheme:          "https",
-		BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-		TLSConfig:       &tlsConfig,
-	}
-	svcMonitor.Spec = monitoringv1.ServiceMonitorSpec{
-		JobLabel:  "monitor-elasticsearch",
-		Endpoints: []monitoringv1.Endpoint{proxy, elasticsearch},
-		Selector:  labelSelector,
-		NamespaceSelector: monitoringv1.NamespaceSelector{
-			MatchNames: []string{namespace},
+	endpoints := []monitoringv1.Endpoint{
+		{
+			Port:            dpl.Name,
+			Path:            "/metrics",
+			Scheme:          "https",
+			BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			TLSConfig:       &tlsConfig,
+		},
+		{
+			Port:            dpl.Name,
+			Path:            "/_prometheus/metrics",
+			Scheme:          "https",
+			BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			TLSConfig:       &tlsConfig,
 		},
 	}
-	return svcMonitor
-}
 
-func serviceMonitor(serviceMonitorName string, namespace string, labels map[string]string) *monitoringv1.ServiceMonitor {
-	return &monitoringv1.ServiceMonitor{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       monitoringv1.ServiceMonitorsKind,
-			APIVersion: monitoringv1.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceMonitorName,
-			Namespace: namespace,
-			Labels:    labels,
-		},
+	monitor := servicemonitor.New(serviceMonitorName, dpl.Namespace, labelsWithDefault).
+		WithJobLabel("monitor-elasticsearch").
+		WithSelector(metav1.LabelSelector{
+			MatchLabels: labelsWithDefault,
+		}).
+		WithNamespaceSelector(monitoringv1.NamespaceSelector{
+			MatchNames: []string{dpl.Namespace},
+		}).
+		WithEndpoints(endpoints...).
+		Build()
+
+	dpl.AddOwnerRefTo(monitor)
+
+	res, err := servicemonitor.CreateOrUpdate(context.TODO(), er.client, monitor, servicemonitor.Compare, servicemonitor.Mutate)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update elasticsearch servicemonitor",
+			"cluster", er.cluster.Name,
+			"namespace", er.cluster.Namespace,
+		)
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch servicemonitor: %s", res),
+		"service_monitor_name", monitor.Name,
+		"cluster", er.cluster.Name,
+		"namespace", er.cluster.Namespace,
+	)
+
+	return nil
 }
