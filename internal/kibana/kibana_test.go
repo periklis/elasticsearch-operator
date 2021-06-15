@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/rbac"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -172,26 +173,28 @@ var _ = Describe("Reconciling", func() {
 						"kibanaInfraURL": "https://",
 					},
 				)
-				sharingConfigReader = NewRole(
+				sharingConfigReader = rbac.NewRole(
 					"sharing-config-reader",
 					cluster.GetNamespace(),
-					NewPolicyRules(
-						NewPolicyRule(
+					rbac.NewPolicyRules(
+						rbac.NewPolicyRule(
 							[]string{""},
 							[]string{"configmaps"},
 							[]string{"sharing-config"},
 							[]string{"get"},
+							[]string{},
 						),
 					),
 				)
-				sharingConfigReaderBinding = NewRoleBinding(
+				sharingConfigReaderBinding = rbac.NewRoleBinding(
 					"openshift-logging-sharing-config-reader-binding",
 					cluster.GetNamespace(),
 					"sharing-config-reader",
-					NewSubjects(
-						NewSubject(
+					rbac.NewSubjects(
+						rbac.NewSubject(
 							"Group",
 							"system:authenticated",
+							"",
 						),
 					),
 				)

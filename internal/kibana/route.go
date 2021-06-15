@@ -10,6 +10,7 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/rbac"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
@@ -282,19 +283,18 @@ func (clusterRequest *KibanaRequest) removeSharedConfigMapPre45x() error {
 			append(errCtx, "configmap", sharedConfigKey.Name)...)
 	}
 
-	sharedRole := NewRole("sharing-config-reader", cluster.Namespace, nil)
-	err = clusterRequest.Delete(sharedRole)
+	sharedRoleKey := client.ObjectKey{Name: "sharing-config-reader", Namespace: cluster.Namespace}
+	err = rbac.DeleteRole(context.TODO(), clusterRequest.client, sharedRoleKey)
 	if err != nil && !apierrors.IsNotFound(kverrors.Root(err)) {
-		return errCtx.Wrap(err, "failed to delete Kibana route shared config role",
-			"role", sharedRole.Name,
-		)
+		return kverrors.Wrap(err, "failed to delete Kibana route shared config role",
+			append(errCtx, "role_name", sharedRoleKey.Name)...)
 	}
 
-	sharedRoleBinding := NewRoleBinding("openshift-logging-sharing-config-reader-binding", cluster.Namespace, "", nil)
-	err = clusterRequest.Delete(sharedRoleBinding)
+	sharedRoleBindingKey := client.ObjectKey{Name: "openshift-logging-sharing-config-reader-binding", Namespace: cluster.Namespace}
+	err = rbac.DeleteRoleBinding(context.TODO(), clusterRequest.client, sharedRoleBindingKey)
 	if err != nil && !apierrors.IsNotFound(kverrors.Root(err)) {
-		return errCtx.Wrap(err, "failed to delete Kibana route shared config role binding",
-			"role_binding", sharedRoleBinding.Name)
+		return kverrors.Wrap(err, "failed to delete Kibana route shared config rolebinding",
+			append(errCtx, "role_binding_name", sharedRoleBindingKey.Name)...)
 	}
 
 	return nil
