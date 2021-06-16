@@ -6,6 +6,7 @@ import (
 
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/persistentvolume"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/statefulset"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
@@ -38,13 +39,13 @@ func (er *ElasticsearchRequest) recoverOrphanedCluster() error {
 
 		// collect uuid counts
 		selector := map[string]string{}
-		pvcList, err := GetPVCList(er.cluster.Namespace, selector, er.client)
+		pvcList, err := persistentvolume.ListPVC(context.TODO(), er.client, er.cluster.Namespace, selector)
 		if err != nil {
 			log.Error(err, "Unable to retrieve PVC list while recovering", "cluster", er.cluster.Name, "namespace", er.cluster.Namespace)
 			return err
 		}
 
-		if len(pvcList.Items) > 0 {
+		if len(pvcList) > 0 {
 			return er.recoverFromPVCs(knownUUIDs, nodesToMatch)
 		} else {
 			return er.recoverFromDeployments(knownUUIDs, nodesToMatch)
@@ -261,14 +262,14 @@ func (er *ElasticsearchRequest) recoverFromPVCs(knownUUIDs []string, nodesToMatc
 		"logging-cluster": er.cluster.Name,
 	}
 
-	pvcList, err := GetPVCList(er.cluster.Namespace, selector, er.client)
+	pvcList, err := persistentvolume.ListPVC(context.TODO(), er.client, er.cluster.Namespace, selector)
 	if err != nil {
 		log.Error(err, "Unable to retrieve PVC list while recovering", "cluster", er.cluster.Name, "namespace", er.cluster.Namespace)
 		return err
 	}
 
 	uuidCounts := make(map[string]int32)
-	for _, pvc := range pvcList.Items {
+	for _, pvc := range pvcList {
 
 		clusterName, _, uuid := parseNodeName(pvc.Name)
 
@@ -308,7 +309,7 @@ func (er *ElasticsearchRequest) recoverFromPVCs(knownUUIDs []string, nodesToMatc
 			}
 		}
 
-		for _, pvc := range pvcList.Items {
+		for _, pvc := range pvcList {
 
 			clusterName, role, uuid := parseNodeName(pvc.Name)
 

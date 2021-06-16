@@ -15,6 +15,7 @@ import (
 
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/persistentvolume"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -609,7 +610,11 @@ func newVolumeSource(clusterName, nodeName, namespace string, node api.Elasticse
 		ClaimName: claimName,
 	}
 
-	volSpec := v1.PersistentVolumeClaimSpec{
+	pvcLabels := map[string]string{
+		"logging-cluster": clusterName,
+	}
+	pvc := persistentvolume.NewPVC(claimName, namespace, pvcLabels)
+	pvc.Spec = v1.PersistentVolumeClaimSpec{
 		AccessModes: []v1.PersistentVolumeAccessMode{
 			v1.ReadWriteOnce,
 		},
@@ -621,10 +626,17 @@ func newVolumeSource(clusterName, nodeName, namespace string, node api.Elasticse
 		StorageClassName: specVol.StorageClassName,
 	}
 
-	err := createOrUpdatePersistentVolumeClaim(volSpec, claimName, namespace, clusterName, client)
+	res, err := persistentvolume.CreateOrUpdatePVC(context.TODO(), client, pvc, persistentvolume.CompareLabelsOnly, persistentvolume.MutateLabelsOnly)
 	if err != nil {
 		log.Error(err, "Unable to create PersistentVolumeClaim")
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch persistentvolumeclaim: %s", res),
+		"persistent_volume_claim_name", claimName,
+		"cluster", clusterName,
+		"namespace", namespace,
+	)
+
 	return volSource
 }
 

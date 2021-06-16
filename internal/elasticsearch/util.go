@@ -1,14 +1,12 @@
 package elasticsearch
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
 	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 )
@@ -318,17 +316,4 @@ func sliceContainsString(slice []string, value string) bool {
 	}
 
 	return false
-}
-
-func GetPVCList(namespace string, selector map[string]string, sdkClient client.Client) (*v1.PersistentVolumeClaimList, error) {
-	list := &v1.PersistentVolumeClaimList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(selector),
-	}
-
-	err := sdkClient.List(context.TODO(), list, listOpts...)
-
-	return list, err
 }
