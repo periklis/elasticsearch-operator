@@ -6,6 +6,7 @@ import (
 
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/statefulset"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 	appsv1 "k8s.io/api/apps/v1"
@@ -219,14 +220,14 @@ func (er *ElasticsearchRequest) recoverFromDeployments(knownUUIDs []string, node
 				}
 			}
 		} else {
-			var statefulsetList *appsv1.StatefulSetList
-			statefulsetList, err := GetStatefulSetList(er.cluster.Namespace, selector, er.client)
+			var statefulsetList []appsv1.StatefulSet
+			statefulsetList, err := statefulset.List(context.TODO(), er.client, er.cluster.Namespace, selector)
 			if err != nil {
 				log.Error(err, "Unable to retrieve Statefulset list while recovering", "cluster", er.cluster.Name, "namespace", er.cluster.Namespace)
 				return err
 			}
 
-			for _, statefulSet := range statefulsetList.Items {
+			for _, statefulSet := range statefulsetList {
 				clusterName, _, uuid := parseNodeName(statefulSet.Name)
 
 				if clusterName != er.cluster.Name {

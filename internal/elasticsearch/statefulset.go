@@ -2,19 +2,19 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/go-logr/logr"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/statefulset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/ViaQ/logerr/log"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
@@ -52,42 +52,34 @@ func (n *statefulSetNode) L() logr.Logger {
 
 func (n *statefulSetNode) populateReference(nodeName string, node api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient esclient.Client) {
 	labels := newLabels(cluster.Name, nodeName, roleMap)
-
-	statefulSet := apps.StatefulSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "StatefulSet",
-			APIVersion: apps.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodeName,
-			Namespace: cluster.Namespace,
-			Labels:    labels,
-		},
-	}
-
-	n.replicas = replicas
-
 	partition := int32(0)
 	logConfig := getLogConfig(cluster.GetAnnotations())
-	statefulSet.Spec = apps.StatefulSetSpec{
-		Replicas: &replicas,
-		Selector: &metav1.LabelSelector{
+
+	template := newPodTemplateSpec(
+		nodeName, cluster.Name, cluster.Namespace, node,
+		cluster.Spec.Spec, labels, roleMap, client, logConfig,
+	)
+
+	sts := statefulset.New(nodeName, cluster.Namespace, labels, replicas).
+		WithSelector(metav1.LabelSelector{
 			MatchLabels: newLabelSelector(cluster.Name, nodeName, roleMap),
-		},
-		Template: newPodTemplateSpec(nodeName, cluster.Name, cluster.Namespace, node, cluster.Spec.Spec, labels, roleMap, client, logConfig),
-		UpdateStrategy: apps.StatefulSetUpdateStrategy{
+		}).
+		WithTemplate(template).
+		WithUpdateStrategy(apps.StatefulSetUpdateStrategy{
 			Type: apps.RollingUpdateStatefulSetStrategyType,
 			RollingUpdate: &apps.RollingUpdateStatefulSetStrategy{
 				Partition: &partition,
 			},
-		},
-	}
-	statefulSet.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+		}).
+		Build()
 
-	cluster.AddOwnerRefTo(&statefulSet)
+	sts.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
 
-	n.self = statefulSet
+	cluster.AddOwnerRefTo(sts)
+
+	n.self = *sts
 	n.clusterName = cluster.Name
+	n.replicas = replicas
 
 	n.client = client
 	n.esClient = esClient
@@ -174,105 +166,84 @@ func (n *statefulSetNode) waitForNodeLeaveCluster() (bool, error) {
 }
 
 func (n *statefulSetNode) setPartition(partitions int32) error {
-	nodeCopy := n.self.DeepCopy()
-
-	nretries := -1
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nretries++
-		if err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, nodeCopy); err != nil {
-			n.L().Info("Could not get Elasticsearch node resource", "error", err)
-			return err
+	compareFunc := func(current, _ *apps.StatefulSet) bool {
+		if *current.Spec.UpdateStrategy.RollingUpdate.Partition == partitions {
+			return false
 		}
+		return true
+	}
+	mutateFunc := func(current, _ *apps.StatefulSet) {
+		*current.Spec.UpdateStrategy.RollingUpdate.Partition = partitions
+	}
 
-		if *nodeCopy.Spec.UpdateStrategy.RollingUpdate.Partition == partitions {
-			return nil
-		}
-
-		nodeCopy.Spec.UpdateStrategy.RollingUpdate.Partition = &partitions
-
-		if err := n.client.Update(context.TODO(), nodeCopy); err != nil {
-			n.L().Info("Failed to update node resource. Retrying...", "error", err)
-			return err
-		}
-
-		n.self.Spec.UpdateStrategy.RollingUpdate.Partition = &partitions
-
-		return nil
-	})
+	res, err := statefulset.Update(context.TODO(), n.client, &n.self, compareFunc, mutateFunc)
 	if err != nil {
-		return kverrors.Wrap(err, "could not update Elasticsearch node",
-			"node", n.self.Name,
-			"retries", nretries,
+		return kverrors.Wrap(err, "failed to update elasticsearch node statefulset",
+			"node_statefulset_name", n.self.Name,
 		)
 	}
 
-	n.L().Info("successfully updated Elasticsearch node")
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+		"node_statefulset_name", n.self.Name,
+		"cluster", n.clusterName,
+		"namespace", n.self.Namespace,
+	)
+
+	n.self.Spec.UpdateStrategy.RollingUpdate.Partition = &partitions
+
 	return nil
 }
 
 func (n *statefulSetNode) partition() (int32, error) {
-	desired := &apps.StatefulSet{}
-
-	if err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, desired); err != nil {
+	key := client.ObjectKey{Name: n.name(), Namespace: n.self.Namespace}
+	sts, err := statefulset.Get(context.TODO(), n.client, key)
+	if err != nil {
 		n.L().Info("Could not get Elasticsearch node resource", "error", err)
 		return -1, err
 	}
 
-	return *desired.Spec.UpdateStrategy.RollingUpdate.Partition, nil
+	return *sts.Spec.UpdateStrategy.RollingUpdate.Partition, nil
 }
 
 func (n *statefulSetNode) setReplicaCount(replicas int32) error {
-	nodeCopy := n.self.DeepCopy()
+	compareFunc := func(_, _ *apps.StatefulSet) bool { return true }
+	mutateFunc := func(current, _ *apps.StatefulSet) {
+		current.Spec.Replicas = &replicas
+	}
 
-	nretries := -1
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nretries++
-		if err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, nodeCopy); err != nil {
-			n.L().Error(err, "Could not get Elasticsearch node resource")
-			return err
-		}
-
-		if *nodeCopy.Spec.Replicas == replicas {
-			return nil
-		}
-
-		nodeCopy.Spec.Replicas = &replicas
-
-		if err := n.client.Update(context.TODO(), &n.self); err != nil {
-			n.L().Error(err, "Failed to update node resource")
-			return err
-		}
-
-		n.self.Spec.Replicas = &replicas
-
-		return nil
-	})
-	if retryErr != nil {
-		return kverrors.Wrap(retryErr, "could not update Elasticsearch node",
-			"node", n.self.Name,
-			"retries", nretries,
+	res, err := statefulset.Update(context.TODO(), n.client, &n.self, compareFunc, mutateFunc)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to update elasticsearch node statefulset",
+			"node_statefulset_name", n.self.Name,
 		)
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+		"node_statefulset_name", n.self.Name,
+		"cluster", n.clusterName,
+		"namespace", n.self.Namespace,
+	)
+
+	n.self.Spec.Replicas = &replicas
 
 	return nil
 }
 
 func (n *statefulSetNode) replicaCount() (int32, error) {
-	desired := &apps.StatefulSet{}
-
-	if err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, desired); err != nil {
+	key := client.ObjectKey{Name: n.name(), Namespace: n.self.Namespace}
+	sts, err := statefulset.Get(context.TODO(), n.client, key)
+	if err != nil {
 		return -1, err
 	}
 
-	return desired.Status.Replicas, nil
+	return sts.Status.Replicas, nil
 }
 
 func (n *statefulSetNode) isMissing() bool {
-	obj := &apps.StatefulSet{}
-	key := types.NamespacedName{Name: n.name(), Namespace: n.self.Namespace}
-
-	if err := n.client.Get(context.TODO(), key, obj); err != nil {
-		if apierrors.IsNotFound(err) {
+	key := client.ObjectKey{Name: n.name(), Namespace: n.self.Namespace}
+	_, err := statefulset.Get(context.TODO(), n.client, key)
+	if err != nil {
+		if apierrors.IsNotFound(kverrors.Root(err)) {
 			return true
 		}
 	}
@@ -281,20 +252,29 @@ func (n *statefulSetNode) isMissing() bool {
 }
 
 func (n *statefulSetNode) delete() error {
-	return n.client.Delete(context.TODO(), &n.self)
+	key := client.ObjectKey{Name: n.self.Name, Namespace: n.self.Namespace}
+	return statefulset.Delete(context.TODO(), n.client, key)
 }
 
 func (n *statefulSetNode) create() error {
 	if n.self.ObjectMeta.ResourceVersion == "" {
-		err := n.client.Create(context.TODO(), &n.self)
+		res, err := statefulset.Create(context.TODO(), n.client, &n.self)
 		if err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return kverrors.Wrap(err, "could not create node resource")
+			if !apierrors.IsAlreadyExists(kverrors.Root(err)) {
+				return kverrors.Wrap(err, "failed to create or update elasticsearch node statefulset",
+					"node_statefulset_name", n.self.Name,
+				)
 			} else {
 				n.scale()
 				return nil
 			}
 		}
+
+		log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+			"node_statefulset_name", n.self.Name,
+			"cluster", n.clusterName,
+			"namespace", n.self.Namespace,
+		)
 
 		// update the hashmaps
 		n.configmapHash = getConfigmapDataHash(n.clusterName, n.self.Namespace, n.client)
@@ -307,27 +287,28 @@ func (n *statefulSetNode) create() error {
 }
 
 func (n *statefulSetNode) executeUpdate() error {
-	// see if we need to update the deployment object and verify we have latest to update
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		currentStatefulSet := apps.StatefulSet{}
+	compareFunc := func(current, desired *apps.StatefulSet) bool {
+		return pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
+	}
 
-		err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, &currentStatefulSet)
-		// error check that it exists, etc
-		if err != nil {
-			n.L().Error(err, "Failed to get node")
-			return err
-		}
+	mutateFunc := func(current, desired *apps.StatefulSet) {
+		current.Spec.Template = createUpdatablePodTemplateSpec(current.Spec.Template, desired.Spec.Template)
+	}
 
-		if pod.ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, n.self.Spec.Template) {
-			currentStatefulSet.Spec.Template = createUpdatablePodTemplateSpec(currentStatefulSet.Spec.Template, n.self.Spec.Template)
+	res, err := statefulset.Update(context.TODO(), n.client, &n.self, compareFunc, mutateFunc)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to update elasticsearch node statefulset",
+			"node_statefulset_name", n.self.Name,
+		)
+	}
 
-			if updateErr := n.client.Update(context.TODO(), &currentStatefulSet); updateErr != nil {
-				n.L().Error(err, "Failed to update node resource")
-				return updateErr
-			}
-		}
-		return nil
-	})
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+		"node_statefulset_name", n.self.Name,
+		"cluster", n.clusterName,
+		"namespace", n.self.Namespace,
+	)
+
+	return nil
 }
 
 func (n *statefulSetNode) refreshHashes() {
@@ -343,16 +324,14 @@ func (n *statefulSetNode) refreshHashes() {
 }
 
 func (n *statefulSetNode) scale() {
-	desired := n.self.DeepCopy()
-	err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, &n.self)
-	// error check that it exists, etc
+	key := client.ObjectKey{Name: n.name(), Namespace: n.self.Namespace}
+	sts, err := statefulset.Get(context.TODO(), n.client, key)
 	if err != nil {
-		// if it doesn't exist, return true
 		return
 	}
 
-	if *desired.Spec.Replicas != *n.self.Spec.Replicas {
-		n.self.Spec.Replicas = desired.Spec.Replicas
+	if *sts.Spec.Replicas != *n.self.Spec.Replicas {
+		n.self.Spec.Replicas = sts.Spec.Replicas
 		n.L().Info("Resource has different container replicas than desired")
 
 		if err := n.setReplicaCount(*n.self.Spec.Replicas); err != nil {
@@ -362,17 +341,13 @@ func (n *statefulSetNode) scale() {
 }
 
 func (n *statefulSetNode) isChanged() bool {
-	desiredTemplate := n.self.Spec.Template
-	currentStatefulSet := apps.StatefulSet{}
-
-	err := n.client.Get(context.TODO(), types.NamespacedName{Name: n.self.Name, Namespace: n.self.Namespace}, &currentStatefulSet)
-	// error check that it exists, etc
+	key := client.ObjectKey{Name: n.name(), Namespace: n.self.Namespace}
+	sts, err := statefulset.Get(context.TODO(), n.client, key)
 	if err != nil {
-		// if it doesn't exist, return true
 		return false
 	}
 
-	return pod.ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, desiredTemplate)
+	return pod.ArePodTemplateSpecDifferent(sts.Spec.Template, n.self.Spec.Template)
 }
 
 func (n *statefulSetNode) progressNodeChanges() error {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -319,19 +318,6 @@ func sliceContainsString(slice []string, value string) bool {
 	}
 
 	return false
-}
-
-func GetStatefulSetList(namespace string, selector map[string]string, sdkClient client.Client) (*appsv1.StatefulSetList, error) {
-	list := &appsv1.StatefulSetList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(selector),
-	}
-
-	err := sdkClient.List(context.TODO(), list, listOpts...)
-
-	return list, err
 }
 
 func GetPVCList(namespace string, selector map[string]string, sdkClient client.Client) (*v1.PersistentVolumeClaimList, error) {
