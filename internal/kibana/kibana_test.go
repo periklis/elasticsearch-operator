@@ -100,9 +100,6 @@ var _ = Describe("Reconciling", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            KibanaConsoleLinkName,
 					ResourceVersion: "1",
-					OwnerReferences: []metav1.OwnerReference{
-						getOwnerRef(cluster),
-					},
 				},
 				Spec: consolev1.ConsoleLinkSpec{
 					Location: consolev1.ApplicationMenu,

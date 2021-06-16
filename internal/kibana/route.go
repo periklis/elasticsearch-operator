@@ -10,13 +10,13 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/console"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/rbac"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	consolev1 "github.com/openshift/api/console/v1"
 	route "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -163,66 +163,39 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaConsoleLink() error {
 		return kverrors.Wrap(err, "failed to get route URL for kibana")
 	}
 
-	cl := NewConsoleLink(KibanaConsoleLinkName, kibanaURL)
-	utils.AddOwnerRefToObject(cl, getOwnerRef(cluster))
+	cl := console.NewConsoleLink(KibanaConsoleLinkName, kibanaURL, "Logging", "Observability")
 
-	if err := clusterRequest.createOrUpdateConsoleLink(cl); err != nil {
-		return kverrors.Wrap(err, "failed to create or update kibana console link CR for cluster",
-			"cluster", cluster.Name)
-	}
-
-	return nil
-}
-
-func (clusterRequest *KibanaRequest) createOrUpdateConsoleLink(desired *consolev1.ConsoleLink) error {
-	linkName := desired.GetName()
-	errCtx := kverrors.NewContext("cluster", clusterRequest.cluster.GetName(),
-		"link_name", linkName)
-
-	err := clusterRequest.Create(desired)
-	if err != nil && !apierrors.IsAlreadyExists(kverrors.Root(err)) {
-		return errCtx.Wrap(err, "failed to create Kibana link for cluster")
-	}
-
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &consolev1.ConsoleLink{}
-		if err := clusterRequest.Get(linkName, current); err != nil {
-			if apierrors.IsNotFound(kverrors.Root(err)) {
-				return nil
-			}
-			return kverrors.Wrap(err, "failed to get Kibana console link", errCtx...)
-		}
-
-		ok := consoleLinksEqual(current, desired)
-		if !ok {
-			current.Spec = desired.Spec
-			return clusterRequest.Update(current)
-		}
-
-		return nil
-	})
-
+	res, err := console.CreateOrUpdateConsoleLink(context.TODO(), clusterRequest.client, cl, console.CompareConsoleLinks, console.MutateConsoleLinkSpecOnly)
 	if err != nil {
-		return kverrors.Wrap(err, "failed to update console link", errCtx...)
+		return kverrors.Wrap(err, "failed to create or update kibana console link CR for cluster",
+			"cluster", cluster.Name,
+		)
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled kibana consolelink: %s", res),
+		"console_link_name", cl.Name,
+		"cluster", cluster.Name,
+	)
+
 	return nil
 }
 
 func (clusterRequest *KibanaRequest) createOrUpdateKibanaConsoleExternalLogLink() (err error) {
 	cluster := clusterRequest.cluster
 
-	errCtx := kverrors.NewContext("cluster", clusterRequest.cluster.Name,
-		"namespace", clusterRequest.cluster.Namespace)
-
 	kibanaURL, err := clusterRequest.GetRouteURL("kibana")
 	if err != nil {
-		return kverrors.Wrap(err, "failed to get route URL", errCtx...)
+		return kverrors.Wrap(err, "failed to get route URL", "cluster", clusterRequest.cluster.Name)
 	}
-	errCtx = append(errCtx, "kibana_url", kibanaURL)
 
-	consoleExternalLogLink := NewConsoleExternalLogLink(
+	labels := map[string]string{
+		"component":     "support",
+		"logging-infra": "support",
+		"provider":      "openshift",
+	}
+
+	consoleExternalLogLink := console.NewConsoleExternalLogLink(
 		"kibana",
-		cluster.Namespace,
 		"Show in Kibana",
 		strings.Join([]string{
 			kibanaURL,
@@ -235,37 +208,27 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaConsoleExternalLogLink(
 			"')),sort:!('@timestamp',desc))",
 		},
 			""),
+		labels,
 	)
 
-	utils.AddOwnerRefToObject(consoleExternalLogLink, getOwnerRef(cluster))
-
-	current := &consolev1.ConsoleExternalLogLink{}
-	if err = clusterRequest.Get("kibana", current); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return kverrors.Wrap(err, "failed to get consoleexternalloglink", errCtx...)
-		}
-
-		err = clusterRequest.Create(consoleExternalLogLink)
-		if err != nil && !apierrors.IsAlreadyExists(kverrors.Root(err)) {
-			return kverrors.Wrap(err, "failure creating Kibana console external log link", errCtx...)
-		}
-
-		return nil
+	res, err := console.CreateOrUpdateConsoleExternalLogLink(
+		context.TODO(),
+		clusterRequest.client,
+		consoleExternalLogLink,
+		console.CompareConsoleExternalLogLinkEqual,
+		console.MutateConsoleExternalLogLink,
+	)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update kibana console external log link CR for cluster",
+			"cluster", cluster.Name,
+			"kibana_url", kibanaURL,
+		)
 	}
 
-	// do a comparison to see if these are the same spec -- if not, delete and recreate
-	if current.Spec.HrefTemplate != consoleExternalLogLink.Spec.HrefTemplate &&
-		current.Spec.Text != consoleExternalLogLink.Spec.Text {
-
-		if err = clusterRequest.RemoveConsoleExternalLogLink("kibana"); err != nil {
-			return
-		}
-
-		err = clusterRequest.Create(consoleExternalLogLink)
-		if err != nil && !apierrors.IsAlreadyExists(kverrors.Root(err)) {
-			return kverrors.Wrap(err, "failure creating Kibana console external log link", errCtx...)
-		}
-	}
+	log.Info(fmt.Sprintf("Successfully reconciled kibana external log link: %s", res),
+		"console_external_log_link_name", consoleExternalLogLink.Name,
+		"cluster", cluster.Name,
+	)
 
 	return nil
 }
