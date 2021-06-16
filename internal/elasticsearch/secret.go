@@ -4,110 +4,67 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"reflect"
 	"strings"
 
+	"github.com/ViaQ/logerr/kverrors"
+	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
-	v1 "k8s.io/api/core/v1"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/secret"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func newSecret(secretName, namespace string, data map[string][]byte) *v1.Secret {
-	return &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
-		},
-		Data: data,
-	}
-}
+func CreateOrUpdateSecretWithOwnerRef(secretName, namespace string, data map[string][]byte, client client.Client, ownerRef metav1.OwnerReference) error {
+	s := secret.New(secretName, namespace, data)
 
-func createOrUpdateSecret(secret *v1.Secret, client client.Client) error {
-	err := client.Create(context.TODO(), secret)
-	if err == nil {
-		return nil
-	}
+	// add owner ref to secret
+	s.OwnerReferences = append(s.OwnerReferences, ownerRef)
 
-	if !apierrors.IsAlreadyExists(err) {
-		// FIXME: we should wrap this instead...
-		return err
-	}
-
-	// get and update with new data
-	currentSecret, err := getSecret(secret.Name, secret.Namespace, client)
+	res, err := secret.CreateOrUpdate(context.TODO(), client, s, secret.CompareDataEqual, secret.MutateDataOnly)
 	if err != nil {
-		return err
+		return kverrors.Wrap(err, "failed to create or update elasticsearch secret",
+			"owner_ref_name", ownerRef.Name,
+		)
 	}
 
-	if !isContentSame(currentSecret.Data, secret.Data) {
-		currentSecret.Data = secret.Data
-		return client.Update(context.TODO(), currentSecret)
-	}
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
+		"secret_name", s.Name,
+		"owner_ref_name", ownerRef.Name,
+	)
 
 	return nil
 }
 
-func CreateOrUpdateSecretWithOwnerRef(secretName, namespace string, data map[string][]byte, client client.Client, ownerRef metav1.OwnerReference) error {
-	secret := newSecret(secretName, namespace, data)
-
-	// add owner ref to secret
-	secret.OwnerReferences = append(secret.OwnerReferences, ownerRef)
-
-	return createOrUpdateSecret(secret, client)
-}
-
 func CreateOrUpdateSecret(secretName, namespace string, data map[string][]byte, client client.Client) error {
-	secret := newSecret(secretName, namespace, data)
-	return createOrUpdateSecret(secret, client)
-}
+	s := secret.New(secretName, namespace, data)
 
-func isContentSame(lhs, rhs map[string][]byte) bool {
-	if len(lhs) != len(rhs) {
-		return false
+	res, err := secret.CreateOrUpdate(context.TODO(), client, s, secret.CompareDataEqual, secret.MutateDataOnly)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update elasticsearch secret")
 	}
 
-	for lKey, lVal := range lhs {
-		keyFound := false
-		for rKey, rVal := range rhs {
-			if lKey == rKey {
-				keyFound = true
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
+		"secret_name", s.Name,
+	)
 
-				if !reflect.DeepEqual(lVal, rVal) {
-					return false
-				}
-			}
-		}
-
-		if !keyFound {
-			return false
-		}
-	}
-
-	return true
+	return nil
 }
 
-func getSecret(secretName, namespace string, client client.Client) (*v1.Secret, error) {
-	secret := v1.Secret{}
+func getSecretDataHash(secretName, namespace string, c client.Client) string {
 
-	err := client.Get(context.TODO(), types.NamespacedName{Name: secretName, Namespace: namespace}, &secret)
-
-	return &secret, err
-}
-
-func getSecretDataHash(secretName, namespace string, client client.Client) string {
 	hash := ""
 
-	secret, err := getSecret(secretName, namespace, client)
+	key := client.ObjectKey{Name: secretName, Namespace: namespace}
+	sec, err := secret.Get(context.TODO(), c, key)
 	if err != nil {
 		return hash
 	}
 
 	dataHashes := make(map[string][32]byte)
 
-	for key, data := range secret.Data {
+	for key, data := range sec.Data {
 		dataHashes[key] = sha256.Sum256([]byte(data))
 	}
 
@@ -128,17 +85,18 @@ func (er ElasticsearchRequest) hasRequiredSecrets() (bool, string) {
 	message := ""
 	hasRequired := true
 
-	secret, err := getSecret(er.cluster.Name, er.cluster.Namespace, er.client)
+	key := client.ObjectKey{Name: er.cluster.Name, Namespace: er.cluster.Namespace}
+	sec, err := secret.Get(context.TODO(), er.client, key)
 
 	// check that the secret is there
-	if apierrors.IsNotFound(err) {
+	if apierrors.IsNotFound(kverrors.Root(err)) {
 		return false, fmt.Sprintf("Expected secret %q in namespace %q is missing", er.cluster.Name, er.cluster.Namespace)
 	}
 
 	var missingCerts []string
 	var secretKeys []string
 
-	for key, data := range secret.Data {
+	for key, data := range sec.Data {
 		// check that the fields aren't blank
 		if string(data) == "" {
 			missingCerts = append(missingCerts, key)

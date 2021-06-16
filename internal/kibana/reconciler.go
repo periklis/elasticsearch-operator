@@ -16,6 +16,7 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/secret"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/service"
 	"github.com/openshift/elasticsearch-operator/internal/migrations"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
@@ -309,11 +310,12 @@ func (clusterRequest *KibanaRequest) getKibanaAnnotations(deployment *apps.Deplo
 
 		hashKey := fmt.Sprintf("%s%s", constants.SecretHashPrefix, secretName)
 
-		secret, err := clusterRequest.GetSecret(secretName)
+		key := client.ObjectKey{Name: secretName, Namespace: clusterRequest.cluster.Namespace}
+		sec, err := secret.Get(context.TODO(), clusterRequest.client, key)
 		if err != nil {
 			return annotations, err
 		}
-		secretHashValue, err := calcSecretHashValue(secret)
+		secretHashValue, err := calcSecretHashValue(sec)
 		if err != nil {
 			return annotations, err
 		}

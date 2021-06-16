@@ -1,12 +1,15 @@
 package kibana
 
 import (
+	"context"
 	"sort"
 
 	"github.com/ViaQ/logerr/kverrors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/secret"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	core "k8s.io/api/core/v1"
 )
@@ -22,20 +25,6 @@ var secretCertificates = map[string]map[string]string{
 		"server-cert":    "kibana-internal.crt",
 		"session-secret": "kibana-session-secret",
 	},
-}
-
-func (clusterRequest *KibanaRequest) GetSecret(secretName string) (*core.Secret, error) {
-	secret := &core.Secret{}
-	if err := clusterRequest.Get(secretName, secret); err != nil {
-		if apierrors.IsNotFound(kverrors.Root(err)) {
-			return nil, err
-		}
-		return nil, kverrors.Wrap(err, "failed to get secret",
-			"name", secret.Name,
-		)
-	}
-
-	return secret, nil
 }
 
 // readSecrets reads all of the secrets it can find within secretCertificates
@@ -67,17 +56,19 @@ func (clusterRequest *KibanaRequest) extractCertificates(secretName string, cert
 }
 
 func (clusterRequest *KibanaRequest) extractSecretToFile(secretName string, key string, toFile string) (err error) {
-	secret, err := clusterRequest.GetSecret(secretName)
+	objKey := client.ObjectKey{Name: secretName, Namespace: clusterRequest.cluster.Namespace}
+	sec, err := secret.Get(context.TODO(), clusterRequest.client, objKey)
 	if err != nil {
 		if apierrors.IsNotFound(kverrors.Root(err)) {
 			return err
 		}
 		return kverrors.Wrap(err, "unable to extract secret to file",
-			"secret", secretName,
+			"cluster", clusterRequest.cluster.Name,
+			"namespace", clusterRequest.cluster.Namespace,
 		)
 	}
 
-	value, ok := secret.Data[key]
+	value, ok := sec.Data[key]
 
 	// check to see if the map value exists
 	if !ok {
