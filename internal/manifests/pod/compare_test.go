@@ -1,4 +1,4 @@
-package elasticsearch
+package pod
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -11,6 +11,7 @@ import (
 var (
 	lhs, rhs                                              v1.PodTemplateSpec
 	emptyVolume, configmapVolume, secretVolume, pvcVolume v1.Volume
+	nodeContainer                                         v1.Container
 )
 
 const (

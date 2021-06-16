@@ -18,6 +18,7 @@ import (
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
+	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 )
 
@@ -629,7 +630,7 @@ func TestPodDiskToleration(t *testing.T) {
 	if len(podSpec.Tolerations) != 1 {
 		t.Errorf("Exp. single toleration but %d were found", len(podSpec.Tolerations))
 	}
-	if !areTolerationsSame(podSpec.Tolerations, expectedToleration) {
+	if !comparators.AreTolerationsSame(podSpec.Tolerations, expectedToleration) {
 		t.Errorf("Exp. the tolerations to contain %v", expectedToleration)
 	}
 }

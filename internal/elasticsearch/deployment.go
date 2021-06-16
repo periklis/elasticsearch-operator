@@ -8,6 +8,7 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -204,14 +205,14 @@ func (node *deploymentNode) podSpecMatches() bool {
 }
 
 func (node *deploymentNode) checkPodSpecMatches(labels map[string]string) bool {
-	podList, err := GetPodList(node.self.Namespace, labels, node.client)
+	podList, err := pod.List(context.TODO(), node.client, node.self.Namespace, labels)
 	if err != nil {
 		log.Error(err, "Could not get node pods", "node", node.name())
 		return false
 	}
 
-	for _, pod := range podList.Items {
-		if !ArePodSpecDifferent(pod.Spec, node.self.Spec.Template.Spec, false) {
+	for _, p := range podList {
+		if !pod.ArePodSpecDifferent(p.Spec, node.self.Spec.Template.Spec, false) {
 			return true
 		}
 	}
@@ -320,11 +321,11 @@ func (node *deploymentNode) isMissing() bool {
 
 func (node *deploymentNode) executeUpdate() error {
 	compareFunc := func(current, desired *apps.Deployment) bool {
-		return ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
+		return pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
 	}
 
 	mutateFunc := func(current, desired *apps.Deployment) {
-		current.Spec.Template = CreateUpdatablePodTemplateSpec(current.Spec.Template, desired.Spec.Template)
+		current.Spec.Template = createUpdatablePodTemplateSpec(current.Spec.Template, desired.Spec.Template)
 	}
 
 	res, err := deployment.Update(context.TODO(), node.client, &node.self, compareFunc, mutateFunc)
@@ -397,5 +398,5 @@ func (node *deploymentNode) isChanged() bool {
 		return false
 	}
 
-	return ArePodTemplateSpecDifferent(current.Spec.Template, node.self.Spec.Template)
+	return pod.ArePodTemplateSpecDifferent(current.Spec.Template, node.self.Spec.Template)
 }

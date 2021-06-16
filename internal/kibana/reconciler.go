@@ -16,6 +16,7 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/secret"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/service"
 	"github.com/openshift/elasticsearch-operator/internal/migrations"
@@ -327,22 +328,10 @@ func (clusterRequest *KibanaRequest) getKibanaAnnotations(deployment *apps.Deplo
 }
 
 func compareDeployments(current, desired *apps.Deployment) bool {
-	if !utils.AreMapsSame(current.Spec.Template.Spec.NodeSelector, desired.Spec.Template.Spec.NodeSelector) {
-		return true
-	}
-	if !utils.AreTolerationsSame(current.Spec.Template.Spec.Tolerations, desired.Spec.Template.Spec.Tolerations) {
-		return true
-	}
-	if isDeploymentImageDifference(current, desired) {
-		return true
-	}
-	if utils.AreResourcesDifferent(current, desired) {
+	if pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template) {
 		return true
 	}
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
-		return true
-	}
-	if updateCurrentDeploymentEnvIfDifferent(current, desired) {
 		return true
 	}
 
@@ -365,28 +354,17 @@ func compareDeployments(current, desired *apps.Deployment) bool {
 }
 
 func mutateDeployment(current *apps.Deployment, desired *apps.Deployment) {
-	// is this needed?
-	if !utils.AreMapsSame(current.Spec.Template.Spec.NodeSelector, desired.Spec.Template.Spec.NodeSelector) {
+	if pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template) {
 		current.Spec.Template.Spec.NodeSelector = desired.Spec.Template.Spec.NodeSelector
-	}
-
-	// is this needed?
-	if !utils.AreTolerationsSame(current.Spec.Template.Spec.Tolerations, desired.Spec.Template.Spec.Tolerations) {
 		current.Spec.Template.Spec.Tolerations = desired.Spec.Template.Spec.Tolerations
 	}
 
-	if isDeploymentImageDifference(current, desired) {
-		current = updateCurrentDeploymentImages(current, desired)
-	}
-
-	_ = utils.AreResourcesDifferent(current, desired)
+	_ = updateCurrentDeploymentImages(current, desired)
+	_ = updateCurrentDeploymentEnvIfDifferent(current, desired)
 
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
-		log.Info("Kibana replicas changed", "previous", *current.Spec.Replicas, "current", *desired.Spec.Replicas, "deployment", current.Name)
 		*current.Spec.Replicas = *desired.Spec.Replicas
 	}
-
-	_ = updateCurrentDeploymentEnvIfDifferent(current, desired)
 
 	currentTrustedCAHash := current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
 	desiredTrustedCAHash := desired.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
@@ -409,21 +387,6 @@ func mutateDeployment(current *apps.Deployment, desired *apps.Deployment) {
 			current.Spec.Template.ObjectMeta.Annotations[hashKey] = desiredHash
 		}
 	}
-}
-
-func isDeploymentImageDifference(current *apps.Deployment, desired *apps.Deployment) bool {
-	for _, curr := range current.Spec.Template.Spec.Containers {
-		for _, des := range desired.Spec.Template.Spec.Containers {
-			// Only compare the images of containers with the same name
-			if curr.Name == des.Name {
-				if curr.Image != des.Image {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
 }
 
 func updateCurrentDeploymentImages(current *apps.Deployment, desired *apps.Deployment) *apps.Deployment {
@@ -636,7 +599,7 @@ func newKibanaPodSpec(cluster *KibanaRequest, elasticsearchName string, proxyCon
 			})
 	}
 
-	kibanaPodSpec := NewPodSpec(
+	kibanaPodSpec := pod.NewSpec(
 		"kibana",
 		[]v1.Container{kibanaContainer, kibanaProxyContainer},
 		[]v1.Volume{
@@ -655,9 +618,10 @@ func newKibanaPodSpec(cluster *KibanaRequest, elasticsearchName string, proxyCon
 				},
 			},
 		},
-		visSpec.NodeSelector,
-		visSpec.Tolerations,
-	)
+	).
+		WithNodeSelectors(visSpec.NodeSelector).
+		WithTolerations(visSpec.Tolerations...).
+		Build()
 
 	if addTrustedCAVolume {
 		kibanaPodSpec.Volumes = append(kibanaPodSpec.Volumes,
@@ -701,7 +665,7 @@ func newKibanaPodSpec(cluster *KibanaRequest, elasticsearchName string, proxyCon
 		},
 	}
 
-	return kibanaPodSpec
+	return *kibanaPodSpec
 }
 
 func getOwnerRef(v *kibana.Kibana) metav1.OwnerReference {
@@ -712,5 +676,14 @@ func getOwnerRef(v *kibana.Kibana) metav1.OwnerReference {
 		Name:       v.Name,
 		UID:        v.UID,
 		Controller: &trueVar,
+	}
+}
+
+func NewContainer(containerName string, imageName string, pullPolicy v1.PullPolicy, resources v1.ResourceRequirements) v1.Container {
+	return v1.Container{
+		Name:            containerName,
+		Image:           imageName,
+		ImagePullPolicy: pullPolicy,
+		Resources:       resources,
 	}
 }

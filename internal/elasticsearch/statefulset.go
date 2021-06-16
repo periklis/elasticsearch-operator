@@ -7,6 +7,7 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/go-logr/logr"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/ViaQ/logerr/log"
@@ -317,8 +318,8 @@ func (n *statefulSetNode) executeUpdate() error {
 			return err
 		}
 
-		if ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, n.self.Spec.Template) {
-			currentStatefulSet.Spec.Template = CreateUpdatablePodTemplateSpec(currentStatefulSet.Spec.Template, n.self.Spec.Template)
+		if pod.ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, n.self.Spec.Template) {
+			currentStatefulSet.Spec.Template = createUpdatablePodTemplateSpec(currentStatefulSet.Spec.Template, n.self.Spec.Template)
 
 			if updateErr := n.client.Update(context.TODO(), &currentStatefulSet); updateErr != nil {
 				n.L().Error(err, "Failed to update node resource")
@@ -371,7 +372,7 @@ func (n *statefulSetNode) isChanged() bool {
 		return false
 	}
 
-	return ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, desiredTemplate)
+	return pod.ArePodTemplateSpecDifferent(currentStatefulSet.Spec.Template, desiredTemplate)
 }
 
 func (n *statefulSetNode) progressNodeChanges() error {

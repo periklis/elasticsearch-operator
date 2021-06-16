@@ -15,6 +15,7 @@ import (
 
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/constants"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -342,9 +343,6 @@ func newPodTemplateSpec(nodeName, clusterName, namespace string, node api.Elasti
 	proxyResourceRequirements := newESProxyResourceRequirements(node.ProxyResources, commonSpec.ProxyResources)
 
 	selectors := mergeSelectors(node.NodeSelector, commonSpec.NodeSelector)
-	// We want to make sure the pod ends up allocated on linux node. Thus we make sure the
-	// linux node selectors is always present. See LOG-411
-	selectors = utils.EnsureLinuxNodeSelector(selectors)
 
 	tolerations := appendTolerations(node.Tolerations, commonSpec.Tolerations)
 	tolerations = appendTolerations(tolerations, []v1.Toleration{
@@ -355,31 +353,44 @@ func newPodTemplateSpec(nodeName, clusterName, namespace string, node api.Elasti
 		},
 	})
 
+	containers := []v1.Container{
+		newElasticsearchContainer(
+			getESImage(),
+			newEnvVars(nodeName, clusterName, resourceRequirements.Limits.Memory().String(), roleMap),
+			resourceRequirements,
+		),
+		newProxyContainer(
+			getESProxyImage(),
+			clusterName,
+			namespace,
+			logConfig,
+			proxyResourceRequirements,
+		),
+	}
+
+	volumes := newVolumes(clusterName, nodeName, namespace, node, client)
+
+	podSpec := pod.NewSpec(clusterName, containers, volumes).
+		WithAffinity(newAffinity(roleMap)).
+		WithNodeSelectors(selectors).
+		WithTolerations(tolerations...).
+		Build()
+
 	return v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: labels,
 		},
-		Spec: v1.PodSpec{
-			Affinity: newAffinity(roleMap),
-			Containers: []v1.Container{
-				newElasticsearchContainer(
-					getESImage(),
-					newEnvVars(nodeName, clusterName, resourceRequirements.Limits.Memory().String(), roleMap),
-					resourceRequirements,
-				),
-				newProxyContainer(
-					getESProxyImage(),
-					clusterName,
-					namespace,
-					logConfig,
-					proxyResourceRequirements),
-			},
-			NodeSelector:       selectors,
-			ServiceAccountName: clusterName,
-			Volumes:            newVolumes(clusterName, nodeName, namespace, node, client),
-			Tolerations:        tolerations,
-		},
+		Spec: *podSpec,
 	}
+}
+
+// createUpdatablePodTemplateSpec creates a pod template from a copy of the update with
+// some aspects of the current
+func createUpdatablePodTemplateSpec(current, desired v1.PodTemplateSpec) v1.PodTemplateSpec {
+	desiredCopy := desired
+	desiredCopy.Spec.Volumes = current.Spec.Volumes
+
+	return desiredCopy
 }
 
 func newESResourceRequirements(nodeResRequirements, commonResRequirements v1.ResourceRequirements) v1.ResourceRequirements {

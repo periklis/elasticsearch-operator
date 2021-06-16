@@ -7,6 +7,7 @@ import (
 	"github.com/ViaQ/logerr/log"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
+	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
@@ -74,13 +75,13 @@ func (er *ElasticsearchRequest) podSpecMatchNode(node loggingv1.ElasticsearchNod
 	selectors := mergeSelectors(node.NodeSelector, er.cluster.Spec.Spec.NodeSelector)
 	selectors = utils.EnsureLinuxNodeSelector(selectors)
 
-	if !areSelectorsSame(selectors, podSpec.NodeSelector) {
+	if !comparators.AreSelectorsSame(selectors, podSpec.NodeSelector) {
 		return false
 	}
 
 	tolerations := appendTolerations(node.Tolerations, er.cluster.Spec.Spec.Tolerations)
 
-	if !containsSameTolerations(podSpec.Tolerations, tolerations) {
+	if !comparators.ContainsSameTolerations(podSpec.Tolerations, tolerations) {
 		return false
 	}
 

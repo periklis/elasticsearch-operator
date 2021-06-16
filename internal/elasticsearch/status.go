@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -183,38 +184,41 @@ func getNodeStatus(name string, status *api.ElasticsearchStatus) (int, *api.Elas
 }
 
 func rolePodStateMap(namespace, clusterName string, client client.Client) map[api.ElasticsearchNodeRole]api.PodStateMap {
-	clientList, _ := GetPodList(
+	clientList, _ := pod.List(
+		context.TODO(),
+		client,
 		namespace,
 		map[string]string{
 			"component":      "elasticsearch",
 			"cluster-name":   clusterName,
 			"es-node-client": "true",
 		},
-		client,
 	)
-	dataList, _ := GetPodList(
+	dataList, _ := pod.List(
+		context.TODO(),
+		client,
 		namespace,
 		map[string]string{
 			"component":    "elasticsearch",
 			"cluster-name": clusterName,
 			"es-node-data": "true",
 		},
-		client,
 	)
-	masterList, _ := GetPodList(
+	masterList, _ := pod.List(
+		context.TODO(),
+		client,
 		namespace,
 		map[string]string{
 			"component":      "elasticsearch",
 			"cluster-name":   clusterName,
 			"es-node-master": "true",
 		},
-		client,
 	)
 
 	return map[api.ElasticsearchNodeRole]api.PodStateMap{
-		api.ElasticsearchRoleClient: podStateMap(clientList.Items),
-		api.ElasticsearchRoleData:   podStateMap(dataList.Items),
-		api.ElasticsearchRoleMaster: podStateMap(masterList.Items),
+		api.ElasticsearchRoleClient: podStateMap(clientList),
+		api.ElasticsearchRoleData:   podStateMap(dataList),
+		api.ElasticsearchRoleMaster: podStateMap(masterList),
 	}
 }
 
@@ -430,7 +434,7 @@ func (er *ElasticsearchRequest) pruneMissingNodes(status *api.ElasticsearchStatu
 			"node-name":    nodeName,
 		}
 
-		nodePodList, err := GetPodList(cluster.GetNamespace(), matchingLabels, er.client)
+		nodePodList, err := pod.List(context.TODO(), er.client, cluster.GetNamespace(), matchingLabels)
 		if err != nil {
 			return err
 		}
@@ -447,7 +451,7 @@ func (er *ElasticsearchRequest) pruneMissingNodes(status *api.ElasticsearchStatu
 			}
 
 			// Filter all pod status for missing node
-			if len(nodePodList.Items) == 0 {
+			if len(nodePodList) == 0 {
 				for nodeRole, podStateMap := range status.Pods {
 					for podState, podNames := range podStateMap {
 						for idx, podName := range podNames {
@@ -496,12 +500,12 @@ func (er *ElasticsearchRequest) updatePodNodeConditions(status *api.Elasticsearc
 			"node-name":    nodeName,
 		}
 
-		nodePodList, err := GetPodList(cluster.GetNamespace(), matchingLabels, er.client)
+		nodePodList, err := pod.List(context.TODO(), er.client, cluster.GetNamespace(), matchingLabels)
 		if err != nil {
 			return err
 		}
 
-		for _, nodePod := range nodePodList.Items {
+		for _, nodePod := range nodePodList {
 
 			isUnschedulable := false
 			for _, podCondition := range nodePod.Status.Conditions {

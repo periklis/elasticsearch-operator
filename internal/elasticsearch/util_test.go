@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	api "github.com/openshift/elasticsearch-operator/apis/logging/v1"
+	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 	"github.com/openshift/elasticsearch-operator/test/helpers"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +46,7 @@ func TestSelectorsBothUndefined(t *testing.T) {
 
 	actual := mergeSelectors(nodeSelector, commonSelector)
 
-	if !areSelectorsSame(actual, expected) {
+	if !comparators.AreSelectorsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -63,7 +64,7 @@ func TestSelectorsCommonDefined(t *testing.T) {
 
 	actual := mergeSelectors(nodeSelector, commonSelector)
 
-	if !areSelectorsSame(actual, expected) {
+	if !comparators.AreSelectorsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -81,7 +82,7 @@ func TestSelectorsNodeDefined(t *testing.T) {
 
 	actual := mergeSelectors(nodeSelector, commonSelector)
 
-	if !areSelectorsSame(actual, expected) {
+	if !comparators.AreSelectorsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -102,7 +103,7 @@ func TestSelectorsCommonAndNodeDefined(t *testing.T) {
 
 	actual := mergeSelectors(nodeSelector, commonSelector)
 
-	if !areSelectorsSame(actual, expected) {
+	if !comparators.AreSelectorsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -127,7 +128,7 @@ func TestSelectorsCommonOverwritten(t *testing.T) {
 
 	actual := mergeSelectors(nodeSelector, commonSelector)
 
-	if !areSelectorsSame(actual, expected) {
+	if !comparators.AreSelectorsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -349,7 +350,7 @@ func TestNoTolerations(t *testing.T) {
 
 	actual := appendTolerations(nodeTolerations, commonTolerations)
 
-	if !areTolerationsSame(actual, expected) {
+	if !comparators.AreTolerationsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -375,7 +376,7 @@ func TestNoNodeTolerations(t *testing.T) {
 
 	actual := appendTolerations(nodeTolerations, commonTolerations)
 
-	if !areTolerationsSame(actual, expected) {
+	if !comparators.AreTolerationsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -401,7 +402,7 @@ func TestNoCommonTolerations(t *testing.T) {
 
 	actual := appendTolerations(nodeTolerations, commonTolerations)
 
-	if !areTolerationsSame(actual, expected) {
+	if !comparators.AreTolerationsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }
@@ -438,7 +439,7 @@ func TestTolerations(t *testing.T) {
 
 	actual := appendTolerations(nodeTolerations, commonTolerations)
 
-	if !areTolerationsSame(actual, expected) {
+	if !comparators.AreTolerationsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 
@@ -456,7 +457,7 @@ func TestTolerations(t *testing.T) {
 		},
 	}
 
-	if !areTolerationsSame(actual, expected) {
+	if !comparators.AreTolerationsSame(actual, expected) {
 		t.Errorf("Expected %v but got %v", expected, actual)
 	}
 }

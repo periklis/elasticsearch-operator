@@ -67,21 +67,6 @@ func appendDefaultLabel(clusterName string, labels map[string]string) map[string
 	return labels
 }
 
-func areSelectorsSame(lhs, rhs map[string]string) bool {
-	if len(lhs) != len(rhs) {
-		return false
-	}
-
-	for lhsKey, lhsVal := range lhs {
-		rhsVal, ok := rhs[lhsKey]
-		if !ok || lhsVal != rhsVal {
-			return false
-		}
-	}
-
-	return true
-}
-
 func mergeSelectors(nodeSelectors, commonSelectors map[string]string) map[string]string {
 	if commonSelectors == nil {
 		commonSelectors = make(map[string]string)
@@ -92,57 +77,6 @@ func mergeSelectors(nodeSelectors, commonSelectors map[string]string) map[string
 	}
 
 	return commonSelectors
-}
-
-func areTolerationsSame(lhs, rhs []v1.Toleration) bool {
-	// if we are checking this as a part of pod spec comparison during a rollout we can't check this
-	// if we are comparing the deployment specs we can...
-	if len(lhs) != len(rhs) {
-		return false
-	}
-
-	return containsSameTolerations(lhs, rhs)
-}
-
-// containsSameTolerations checks that the tolerations in rhs are all contained within lhs
-// this follows our other patterns of "current, desired"
-func containsSameTolerations(lhs, rhs []v1.Toleration) bool {
-	for _, rhsToleration := range rhs {
-		if !containsToleration(rhsToleration, lhs) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func containsToleration(toleration v1.Toleration, tolerations []v1.Toleration) bool {
-	for _, t := range tolerations {
-		if isTolerationSame(t, toleration) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func isTolerationSame(lhs, rhs v1.Toleration) bool {
-	tolerationSecondsBool := false
-	// check that both are either null or not null
-	if (lhs.TolerationSeconds == nil) == (rhs.TolerationSeconds == nil) {
-		if lhs.TolerationSeconds != nil {
-			// only compare values (attempt to dereference) if pointers aren't nil
-			tolerationSecondsBool = *lhs.TolerationSeconds == *rhs.TolerationSeconds
-		} else {
-			tolerationSecondsBool = true
-		}
-	}
-
-	return (lhs.Key == rhs.Key) &&
-		(lhs.Operator == rhs.Operator) &&
-		(lhs.Value == rhs.Value) &&
-		(lhs.Effect == rhs.Effect) &&
-		tolerationSecondsBool
 }
 
 func appendTolerations(nodeTolerations, commonTolerations []v1.Toleration) []v1.Toleration {
@@ -385,23 +319,6 @@ func sliceContainsString(slice []string, value string) bool {
 	}
 
 	return false
-}
-
-func GetPodList(namespace string, selector map[string]string, sdkClient client.Client) (*v1.PodList, error) {
-	list := &v1.PodList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(selector),
-	}
-
-	err := sdkClient.List(
-		context.TODO(),
-		list,
-		listOpts...,
-	)
-
-	return list, err
 }
 
 func GetStatefulSetList(namespace string, selector map[string]string, sdkClient client.Client) (*appsv1.StatefulSetList, error) {
