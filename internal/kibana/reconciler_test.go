@@ -284,6 +284,7 @@ func TestDeploymentDifferentWithKibanaEnvVar(t *testing.T) {
 		clusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		1,
 		lhsPodSpec,
 	)
 
@@ -310,16 +311,12 @@ func TestDeploymentDifferentWithKibanaEnvVar(t *testing.T) {
 		clusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		1,
 		rhsPodSpec,
 	)
 
-	actual, different := isDeploymentDifferent(lhsDeployment, rhsDeployment)
-	if !different {
-		t.Errorf("Exp. the kibana container to be different due to env vars")
-	}
-
-	// verify that we get back something that matches rhsDeployment now
-	if _, different := isDeploymentDifferent(actual, rhsDeployment); different {
+	mutateDeployment(lhsDeployment, rhsDeployment)
+	if !reflect.DeepEqual(lhsDeployment, rhsDeployment) {
 		t.Errorf("Exp. the lhs container to be updated to match rhs container")
 	}
 }
@@ -342,6 +339,7 @@ func TestDeploymentDifferentWithKibanaReplicas(t *testing.T) {
 		ClusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		1,
 		lhsPodSpec,
 	)
 
@@ -351,14 +349,15 @@ func TestDeploymentDifferentWithKibanaReplicas(t *testing.T) {
 		ClusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		2,
 		rhsPodSpec,
 	)
 	newReplicas := new(int32)
 	*newReplicas = 2
 	rhsDeployment.Spec.Replicas = newReplicas
 
-	_, different := isDeploymentDifferent(lhsDeployment, rhsDeployment)
-	if !different {
+	mutateDeployment(lhsDeployment, rhsDeployment)
+	if !reflect.DeepEqual(lhsDeployment, rhsDeployment) {
 		t.Errorf("Exp. the kibana container to be different due to replicas")
 	}
 }
@@ -381,6 +380,7 @@ func TestDeploymentDifferentWithProxyEnvVar(t *testing.T) {
 		clusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		1,
 		lhsPodSpec,
 	)
 
@@ -407,16 +407,12 @@ func TestDeploymentDifferentWithProxyEnvVar(t *testing.T) {
 		clusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		1,
 		rhsPodSpec,
 	)
 
-	actual, different := isDeploymentDifferent(lhsDeployment, rhsDeployment)
-	if !different {
-		t.Errorf("Exp. the kibana-proxy container to be different due to env vars")
-	}
-
-	// verify that we get back something that matches rhsDeployment now
-	if _, different := isDeploymentDifferent(actual, rhsDeployment); different {
+	mutateDeployment(lhsDeployment, rhsDeployment)
+	if !reflect.DeepEqual(lhsDeployment, rhsDeployment) {
 		t.Errorf("Exp. the lhs container to be updated to match rhs container")
 	}
 }

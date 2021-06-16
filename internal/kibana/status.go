@@ -1,7 +1,10 @@
 package kibana
 
 import (
+	"context"
+
 	kibana "github.com/openshift/elasticsearch-operator/apis/logging/v1"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -12,28 +15,26 @@ func (clusterRequest *KibanaRequest) getKibanaStatus() ([]kibana.KibanaStatus, e
 		"logging-infra": "kibana",
 	}
 
-	kibanaDeploymentList, err := clusterRequest.GetDeploymentList(selector)
+	kibanaDeploymentList, err := deployment.List(context.TODO(), clusterRequest.client, clusterRequest.cluster.Namespace, selector)
 	if err != nil {
 		return status, err
 	}
 
-	for _, deployment := range kibanaDeploymentList.Items {
-		selector["component"] = deployment.Name
-
+	for _, dpl := range kibanaDeploymentList {
 		kibanaStatus := kibana.KibanaStatus{
-			Deployment: deployment.Name,
-			Replicas:   *deployment.Spec.Replicas,
+			Deployment: dpl.Name,
+			Replicas:   *dpl.Spec.Replicas,
 		}
 
-		replicaSetList, _ := clusterRequest.GetReplicaSetList(selector)
+		replicaSetList, _ := deployment.ListReplicaSets(context.TODO(), clusterRequest.client, dpl.Name, dpl.Namespace, selector)
 		var replicaNames []string
-		for _, replicaSet := range replicaSetList.Items {
+		for _, replicaSet := range replicaSetList {
 			replicaNames = append(replicaNames, replicaSet.Name)
 		}
 		kibanaStatus.ReplicaSets = replicaNames
 
-		podList, _ := clusterRequest.GetPodList(selector)
-		kibanaStatus.Pods = podStateMap(podList.Items)
+		podList, _ := deployment.ListPods(context.TODO(), clusterRequest.client, dpl.Name, dpl.Namespace, selector)
+		kibanaStatus.Pods = podStateMap(podList)
 
 		kibanaStatus.Conditions, err = clusterRequest.getPodConditions("kibana")
 		if err != nil {

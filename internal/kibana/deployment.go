@@ -1,9 +1,7 @@
 package kibana
 
 import (
-	"github.com/ViaQ/logerr/kverrors"
-	"github.com/openshift/elasticsearch-operator/internal/utils"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 
 	apps "k8s.io/api/apps/v1"
 	core "k8s.io/api/core/v1"
@@ -11,96 +9,26 @@ import (
 )
 
 // NewDeployment stubs an instance of a Deployment
-func NewDeployment(deploymentName string, namespace string, loggingComponent string, component string, podSpec core.PodSpec) *apps.Deployment {
-	return &apps.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Deployment",
-			APIVersion: apps.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"provider":      "openshift",
-				"component":     component,
-				"logging-infra": loggingComponent,
-			},
-		},
-		Spec: apps.DeploymentSpec{
-			Replicas: utils.GetInt32(1),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"provider":      "openshift",
-					"component":     component,
-					"logging-infra": loggingComponent,
-				},
-			},
-			Template: core.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: deploymentName,
-					Labels: map[string]string{
-						"provider":      "openshift",
-						"component":     component,
-						"logging-infra": loggingComponent,
-					},
-				},
-				Spec: podSpec,
-			},
-			Strategy: apps.DeploymentStrategy{
-				Type: apps.RollingUpdateDeploymentStrategyType,
-			},
-		},
-	}
-}
-
-// GetDeploymentList returns a list for a give namespace and selector
-func (clusterRequest *KibanaRequest) GetDeploymentList(selector map[string]string) (*apps.DeploymentList, error) {
-	list := &apps.DeploymentList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Deployment",
-			APIVersion: apps.SchemeGroupVersion.String(),
-		},
+func NewDeployment(deploymentName string, namespace string, loggingComponent string, component string, replicas int32, podSpec core.PodSpec) *apps.Deployment {
+	labels := map[string]string{
+		"provider":      "openshift",
+		"component":     "kibana",
+		"logging-infra": "kibana",
 	}
 
-	err := clusterRequest.List(
-		selector,
-		list,
-	)
+	kibanaDeployment := deployment.New("kibana", namespace, labels, replicas).
+		WithSelector(metav1.LabelSelector{
+			MatchLabels: labels,
+		}).
+		WithStrategy(apps.RollingUpdateDeploymentStrategyType).
+		WithTemplate(core.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "kibana",
+				Labels: labels,
+			},
+			Spec: podSpec,
+		}).
+		Build()
 
-	return list, err
-}
-
-// RemoveDeployment of given name and namespace
-func (clusterRequest *KibanaRequest) RemoveDeployment(deploymentName string) error {
-	deployment := NewDeployment(
-		deploymentName,
-		clusterRequest.cluster.Namespace,
-		deploymentName,
-		deploymentName,
-		core.PodSpec{},
-	)
-
-	err := clusterRequest.Delete(deployment)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return kverrors.Wrap(err, "failure deleting deployment",
-			"deployment", deploymentName)
-	}
-
-	return nil
-}
-
-func (clusterRequest *KibanaRequest) GetReplicaSetList(selector map[string]string) (*apps.ReplicaSetList, error) {
-	list := &apps.ReplicaSetList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ReplicaSet",
-			APIVersion: apps.SchemeGroupVersion.String(),
-		},
-	}
-
-	err := clusterRequest.List(
-		selector,
-		list,
-	)
-
-	return list, err
+	return kibanaDeployment
 }

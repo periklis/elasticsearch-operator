@@ -11,8 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var nodeContainer v1.Container
-
 var _ = Describe("deployment", func() {
 	defer GinkgoRecover()
 

@@ -404,19 +404,6 @@ func GetPodList(namespace string, selector map[string]string, sdkClient client.C
 	return list, err
 }
 
-func GetDeploymentList(namespace string, selector map[string]string, sdkClient client.Client) (*appsv1.DeploymentList, error) {
-	list := &appsv1.DeploymentList{}
-
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(selector),
-	}
-
-	err := sdkClient.List(context.TODO(), list, listOpts...)
-
-	return list, err
-}
-
 func GetStatefulSetList(namespace string, selector map[string]string, sdkClient client.Client) (*appsv1.StatefulSetList, error) {
 	list := &appsv1.StatefulSetList{}
 

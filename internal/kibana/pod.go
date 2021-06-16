@@ -4,7 +4,6 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 
 	core "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NewPodSpec is a constructor to instaniate a new PodSpec.
@@ -27,21 +26,4 @@ func NewContainer(containerName string, imageName string, pullPolicy core.PullPo
 		ImagePullPolicy: pullPolicy,
 		Resources:       resources,
 	}
-}
-
-// GetPodList for a given selector and namespace
-func (clusterRequest *KibanaRequest) GetPodList(selector map[string]string) (*core.PodList, error) {
-	list := &core.PodList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Pod",
-			APIVersion: core.SchemeGroupVersion.String(),
-		},
-	}
-
-	err := clusterRequest.List(
-		selector,
-		list,
-	)
-
-	return list, err
 }

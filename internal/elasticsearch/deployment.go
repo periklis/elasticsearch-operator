@@ -2,15 +2,15 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/ViaQ/logerr/log"
@@ -39,39 +39,24 @@ type deploymentNode struct {
 func (node *deploymentNode) populateReference(nodeName string, n api.ElasticsearchNode, cluster *api.Elasticsearch, roleMap map[api.ElasticsearchNodeRole]bool, replicas int32, client client.Client, esClient esclient.Client) {
 	labels := newLabels(cluster.Name, nodeName, roleMap)
 
-	deployment := apps.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Deployment",
-			APIVersion: apps.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodeName,
-			Namespace: cluster.Namespace,
-			Labels:    labels,
-		},
-	}
-
-	node.replicas = replicas
-
 	progressDeadlineSeconds := int32(1800)
 	logConfig := getLogConfig(cluster.GetAnnotations())
-	deployment.Spec = apps.DeploymentSpec{
-		Replicas: &replicas,
-		Selector: &metav1.LabelSelector{
+	template := newPodTemplateSpec(nodeName, cluster.Name, cluster.Namespace, n, cluster.Spec.Spec, labels, roleMap, client, logConfig)
+
+	dpl := deployment.New(nodeName, cluster.Namespace, labels, replicas).
+		WithSelector(metav1.LabelSelector{
 			MatchLabels: newLabelSelector(cluster.Name, nodeName, roleMap),
-		},
-		Strategy: apps.DeploymentStrategy{
-			Type: "Recreate",
-		},
-		ProgressDeadlineSeconds: &progressDeadlineSeconds,
-		Paused:                  false,
-		Template:                newPodTemplateSpec(nodeName, cluster.Name, cluster.Namespace, n, cluster.Spec.Spec, labels, roleMap, client, logConfig),
-	}
+		}).
+		WithStrategy(apps.RecreateDeploymentStrategyType).
+		WithProgressDeadlineSeconds(progressDeadlineSeconds).
+		WithTemplate(template).
+		Build()
 
-	cluster.AddOwnerRefTo(&deployment)
+	cluster.AddOwnerRefTo(dpl)
 
-	node.self = deployment
+	node.self = *dpl
 	node.clusterName = cluster.Name
+	node.replicas = replicas
 
 	node.client = client
 	node.esClient = esClient
@@ -131,19 +116,31 @@ func (node *deploymentNode) state() api.ElasticsearchNodeStatus {
 }
 
 func (node *deploymentNode) delete() error {
-	return node.client.Delete(context.TODO(), &node.self)
+	key := client.ObjectKey{Name: node.self.Name, Namespace: node.self.Namespace}
+	return deployment.Delete(context.TODO(), node.client, key)
 }
 
 func (node *deploymentNode) create() error {
 	if node.self.ObjectMeta.ResourceVersion == "" {
-		err := node.client.Create(context.TODO(), &node.self)
+
+		res, err := deployment.Create(context.TODO(), node.client, &node.self)
 		if err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				return kverrors.Wrap(err, "could not create node resource")
+			if !apierrors.IsAlreadyExists(kverrors.Root(err)) {
+				return kverrors.Wrap(err, "failed to create or update elasticsearch node deployment",
+
+					"cluster", node.clusterName,
+					"namespace", node.self.Namespace,
+				)
 			} else {
 				return node.pause()
 			}
 		}
+
+		log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+			"node_deployment_name", node.self.Name,
+			"cluster", node.clusterName,
+			"namespace", node.self.Namespace,
+		)
 
 		// created unpaused, pause after deployment...
 		// wait until we have a revision annotation...
@@ -161,11 +158,13 @@ func (node *deploymentNode) create() error {
 
 func (node *deploymentNode) waitForInitialRollout() error {
 	err := wait.Poll(time.Second*1, time.Second*30, func() (done bool, err error) {
-		if err := node.client.Get(context.TODO(), types.NamespacedName{Name: node.self.Name, Namespace: node.self.Namespace}, &node.self); err != nil {
+		key := client.ObjectKey{Name: node.self.Name, Namespace: node.self.Namespace}
+		dpl, err := deployment.Get(context.TODO(), node.client, key)
+		if err != nil {
 			return false, err
 		}
 
-		_, ok := node.self.ObjectMeta.Annotations["deployment.kubernetes.io/revision"]
+		_, ok := dpl.Annotations["deployment.kubernetes.io/revision"]
 		if ok {
 			return true, nil
 		}
@@ -229,89 +228,64 @@ func (node *deploymentNode) unpause() error {
 }
 
 func (node *deploymentNode) setPaused(paused bool) error {
-	// we use pauseNode so that we don't revert any new changes that should be made and
-	// noticed in state()
-	pauseNode := node.self.DeepCopy()
-	ll := log.WithValues("node", pauseNode.Name)
+	compareFunc := func(_, _ *apps.Deployment) bool { return false }
+	mutateFunc := func(current, _ *apps.Deployment) {
+		current.Spec.Paused = paused
+	}
 
-	nretries := -1
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nretries++
-		if err := node.client.Get(context.TODO(), types.NamespacedName{Name: pauseNode.Name, Namespace: pauseNode.Namespace}, pauseNode); err != nil {
-			ll.Info("Could not get Elasticsearch node resource",
-				"error", err)
-			return err
-		}
-
-		if pauseNode.Spec.Paused == paused {
-			return nil
-		}
-
-		pauseNode.Spec.Paused = paused
-
-		if err := node.client.Update(context.TODO(), pauseNode); err != nil {
-			ll.Info("failed to update node resource",
-				"error", err)
-			return err
-		}
-		return nil
-	})
-	if retryErr != nil {
-		return kverrors.Wrap(retryErr, "could not update Elasticsearch node after retries",
-			"node", node.self.Name,
-			"retries", nretries,
+	res, err := deployment.Update(context.TODO(), node.client, &node.self, compareFunc, mutateFunc)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to update elasticsearch node deployment",
+			"cluster", node.clusterName,
+			"namespace", node.self.Namespace,
 		)
 	}
 
-	node.self.Spec.Paused = pauseNode.Spec.Paused
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+		"node_deployment_name", node.self.Name,
+		"cluster", node.clusterName,
+		"namespace", node.self.Namespace,
+	)
+
+	node.self.Spec.Paused = paused
 
 	return nil
 }
 
 func (node *deploymentNode) setReplicaCount(replicas int32) error {
-	nodeCopy := &apps.Deployment{}
-	nretries := -1
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		nretries++
-		if err := node.client.Get(context.TODO(), types.NamespacedName{Name: node.self.Name, Namespace: node.self.Namespace}, nodeCopy); err != nil {
-			log.Info("Could not get Elasticsearch node resource, Retrying...", "error", err)
-			return err
-		}
+	compareFunc := func(_, _ *apps.Deployment) bool { return true }
+	mutateFunc := func(current, _ *apps.Deployment) {
+		current.Spec.Replicas = &replicas
+	}
 
-		if *nodeCopy.Spec.Replicas == replicas {
-			return nil
-		}
-
-		nodeCopy.Spec.Replicas = &replicas
-
-		if err := node.client.Update(context.TODO(), nodeCopy); err != nil {
-			log.Info("failed to update node resource", "node", node.self.Name, "error", err)
-			return err
-		}
-
-		node.self.Spec.Replicas = &replicas
-
-		return nil
-	})
-	if retryErr != nil {
-		return kverrors.Wrap(retryErr, "could not update Elasticsearch node",
-			"node", node.self.Name,
-			"retries", nretries,
+	res, err := deployment.Update(context.TODO(), node.client, &node.self, compareFunc, mutateFunc)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to update elasticsearch node deployment",
+			"cluster", node.clusterName,
+			"namespace", node.self.Namespace,
 		)
 	}
+
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+		"node_deployment_name", node.self.Name,
+		"cluster", node.clusterName,
+		"namespace", node.self.Namespace,
+	)
+
+	node.self.Spec.Replicas = &replicas
 
 	return nil
 }
 
 func (node *deploymentNode) replicaCount() (int32, error) {
-	nodeCopy := &apps.Deployment{}
-
-	if err := node.client.Get(context.TODO(), types.NamespacedName{Name: node.self.Name, Namespace: node.self.Namespace}, nodeCopy); err != nil {
+	key := client.ObjectKey{Name: node.self.Name, Namespace: node.self.Namespace}
+	dpl, err := deployment.Get(context.TODO(), node.client, key)
+	if err != nil {
 		log.Error(err, "Could not get Elasticsearch node resource")
 		return -1, err
 	}
 
-	return nodeCopy.Status.Replicas, nil
+	return dpl.Status.Replicas, nil
 }
 
 func (node *deploymentNode) waitForNodeRejoinCluster() (bool, error) {
@@ -333,11 +307,10 @@ func (node *deploymentNode) waitForNodeLeaveCluster() (bool, error) {
 }
 
 func (node *deploymentNode) isMissing() bool {
-	obj := &apps.Deployment{}
-	key := types.NamespacedName{Name: node.name(), Namespace: node.self.Namespace}
-
-	if err := node.client.Get(context.TODO(), key, obj); err != nil {
-		if apierrors.IsNotFound(err) {
+	key := client.ObjectKey{Name: node.name(), Namespace: node.self.Namespace}
+	_, err := deployment.Get(context.TODO(), node.client, key)
+	if err != nil {
+		if apierrors.IsNotFound(kverrors.Root(err)) {
 			return true
 		}
 	}
@@ -346,26 +319,29 @@ func (node *deploymentNode) isMissing() bool {
 }
 
 func (node *deploymentNode) executeUpdate() error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// isChanged() will get the latest revision from the apiserver
-		// and return false if there is nothing to change and will update the node object if required
+	compareFunc := func(current, desired *apps.Deployment) bool {
+		return ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
+	}
 
-		currentDeployment := apps.Deployment{}
-		err := node.client.Get(context.TODO(), types.NamespacedName{Name: node.self.Name, Namespace: node.self.Namespace}, &currentDeployment)
-		if err != nil {
-			return err
-		}
+	mutateFunc := func(current, desired *apps.Deployment) {
+		current.Spec.Template = CreateUpdatablePodTemplateSpec(current.Spec.Template, desired.Spec.Template)
+	}
 
-		if ArePodTemplateSpecDifferent(currentDeployment.Spec.Template, node.self.Spec.Template) {
-			currentDeployment.Spec.Template = CreateUpdatablePodTemplateSpec(currentDeployment.Spec.Template, node.self.Spec.Template)
+	res, err := deployment.Update(context.TODO(), node.client, &node.self, compareFunc, mutateFunc)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to update elasticsearch node deployment",
+			"cluster", node.clusterName,
+			"namespace", node.self.Namespace,
+		)
+	}
 
-			if err := node.client.Update(context.TODO(), &currentDeployment); err != nil {
-				log.Info("Failed to update node resource", "error", err)
-				return err
-			}
-		}
-		return nil
-	})
+	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+		"node_deployment_name", node.self.Name,
+		"cluster", node.clusterName,
+		"namespace", node.self.Namespace,
+	)
+
+	return nil
 }
 
 func (node *deploymentNode) progressNodeChanges() error {
@@ -412,15 +388,14 @@ func (node *deploymentNode) refreshHashes() {
 }
 
 func (node *deploymentNode) isChanged() bool {
-	desiredTemplate := node.self.Spec.Template
-	currentDeployment := apps.Deployment{}
-
-	err := node.client.Get(context.TODO(), types.NamespacedName{Name: node.self.Name, Namespace: node.self.Namespace}, &currentDeployment)
-	// error check that it exists, etc
+	key := client.ObjectKey{Name: node.name(), Namespace: node.self.Namespace}
+	current, err := deployment.Get(context.TODO(), node.client, key)
 	if err != nil {
-		// if it doesn't exist, return true
+		if apierrors.IsNotFound(kverrors.Root(err)) {
+			return true
+		}
 		return false
 	}
 
-	return ArePodTemplateSpecDifferent(currentDeployment.Spec.Template, desiredTemplate)
+	return ArePodTemplateSpecDifferent(current.Spec.Template, node.self.Spec.Template)
 }

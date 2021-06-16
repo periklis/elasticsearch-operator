@@ -1,9 +1,11 @@
 package elasticsearch
 
 import (
+	"context"
 	"strings"
 
 	"github.com/ViaQ/logerr/log"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -141,13 +143,13 @@ func (er *ElasticsearchRequest) recoverFromDeployments(knownUUIDs []string, node
 			"cluster-name": er.cluster.Name,
 		}
 
-		deploymentList, err := GetDeploymentList(er.cluster.Namespace, selector, er.client)
+		deploymentList, err := deployment.List(context.TODO(), er.client, er.cluster.Namespace, selector)
 		if err != nil {
 			log.Error(err, "Unable to retrieve Deployment list while recovering", "cluster", er.cluster.Name, "namespace", er.cluster.Namespace)
 			return err
 		}
 
-		for _, deployment := range deploymentList.Items {
+		for _, deployment := range deploymentList {
 			clusterName, _, uuid := parseNodeName(deployment.Name)
 
 			if clusterName != er.cluster.Name {
@@ -186,14 +188,14 @@ func (er *ElasticsearchRequest) recoverFromDeployments(knownUUIDs []string, node
 		}
 
 		if isDataNode(node) {
-			var deploymentList *appsv1.DeploymentList
-			deploymentList, err := GetDeploymentList(er.cluster.Namespace, selector, er.client)
+			var deploymentList []appsv1.Deployment
+			deploymentList, err := deployment.List(context.TODO(), er.client, er.cluster.Namespace, selector)
 			if err != nil {
 				log.Error(err, "Unable to retrieve Deployment list while recovering", "cluster", er.cluster.Name, "namespace", er.cluster.Namespace)
 				return err
 			}
 
-			for _, deployment := range deploymentList.Items {
+			for _, deployment := range deploymentList {
 				clusterName, _, uuid := parseNodeName(deployment.Name)
 
 				if clusterName != er.cluster.Name {

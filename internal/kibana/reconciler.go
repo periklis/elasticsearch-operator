@@ -15,6 +15,7 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/constants"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/deployment"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/service"
 	"github.com/openshift/elasticsearch-operator/internal/migrations"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
@@ -22,7 +23,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -240,10 +240,9 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaDeployment(proxyConfig 
 		clusterRequest.cluster.Namespace,
 		"kibana",
 		"kibana",
+		clusterRequest.cluster.Spec.Replicas,
 		kibanaPodSpec,
 	)
-
-	kibanaDeployment.Spec.Replicas = &clusterRequest.cluster.Spec.Replicas
 
 	// if we don't have the hash values we shouldn't start/create
 	annotations, err := clusterRequest.getKibanaAnnotations(kibanaDeployment)
@@ -255,58 +254,19 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaDeployment(proxyConfig 
 
 	utils.AddOwnerRefToObject(kibanaDeployment, getOwnerRef(clusterRequest.cluster))
 
-	err = clusterRequest.Create(kibanaDeployment)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return kverrors.Wrap(err, "failed creating Kibana deployment",
+	res, err := deployment.CreateOrUpdate(context.TODO(), clusterRequest.client, kibanaDeployment, compareDeployments, mutateDeployment)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update kibana deployment",
 			"cluster", clusterRequest.cluster.Name,
+			"namespace", clusterRequest.cluster.Namespace,
 		)
 	}
 
-	if clusterRequest.isManaged() {
-		return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			current := &apps.Deployment{}
-
-			if err := clusterRequest.Get(kibanaDeployment.Name, current); err != nil {
-				if apierrors.IsNotFound(err) {
-					// the object doesn't exist -- it was likely culled
-					// recreate it on the next time through if necessary
-					return nil
-				}
-				return kverrors.Wrap(err, "failed to get Kibana deployment")
-			}
-
-			current, different := isDeploymentDifferent(current, kibanaDeployment)
-
-			currentTrustedCAHash := current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
-			desiredTrustedCAHash := kibanaDeployment.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
-			if currentTrustedCAHash != desiredTrustedCAHash {
-				if current.Spec.Template.ObjectMeta.Annotations == nil {
-					current.Spec.Template.ObjectMeta.Annotations = map[string]string{}
-				}
-				current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName] = desiredTrustedCAHash
-				different = true
-			}
-
-			for _, secretName := range []string{"kibana", "kibana-proxy"} {
-				hashKey := fmt.Sprintf("%s%s", constants.SecretHashPrefix, secretName)
-				currentHash := current.Spec.Template.ObjectMeta.Annotations[hashKey]
-				desiredHash := kibanaDeployment.Spec.Template.ObjectMeta.Annotations[hashKey]
-
-				if currentHash != desiredHash {
-					if current.Spec.Template.ObjectMeta.Annotations == nil {
-						current.Spec.Template.ObjectMeta.Annotations = map[string]string{}
-					}
-					current.Spec.Template.ObjectMeta.Annotations[hashKey] = desiredHash
-					different = true
-				}
-			}
-
-			if different {
-				return clusterRequest.Update(current)
-			}
-			return nil
-		})
-	}
+	log.Info(fmt.Sprintf("Successfully reconciled kibana deployment: %s", res),
+		"deployment_name", kibanaDeployment.Name,
+		"cluster", clusterRequest.cluster.Name,
+		"namespace", clusterRequest.cluster.Namespace,
+	)
 
 	return nil
 }
@@ -364,41 +324,89 @@ func (clusterRequest *KibanaRequest) getKibanaAnnotations(deployment *apps.Deplo
 	return annotations, nil
 }
 
-func isDeploymentDifferent(current *apps.Deployment, desired *apps.Deployment) (*apps.Deployment, bool) {
-	different := false
+func compareDeployments(current, desired *apps.Deployment) bool {
+	if !utils.AreMapsSame(current.Spec.Template.Spec.NodeSelector, desired.Spec.Template.Spec.NodeSelector) {
+		return true
+	}
+	if !utils.AreTolerationsSame(current.Spec.Template.Spec.Tolerations, desired.Spec.Template.Spec.Tolerations) {
+		return true
+	}
+	if isDeploymentImageDifference(current, desired) {
+		return true
+	}
+	if utils.AreResourcesDifferent(current, desired) {
+		return true
+	}
+	if *current.Spec.Replicas != *desired.Spec.Replicas {
+		return true
+	}
+	if updateCurrentDeploymentEnvIfDifferent(current, desired) {
+		return true
+	}
 
+	currentTrustedCAHash := current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
+	desiredTrustedCAHash := desired.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
+	if currentTrustedCAHash != desiredTrustedCAHash {
+		return true
+	}
+
+	for _, secretName := range []string{"kibana", "kibana-proxy"} {
+		hashKey := fmt.Sprintf("%s%s", constants.SecretHashPrefix, secretName)
+		currentHash := current.Spec.Template.ObjectMeta.Annotations[hashKey]
+		desiredHash := desired.Spec.Template.ObjectMeta.Annotations[hashKey]
+
+		if currentHash != desiredHash {
+			return true
+		}
+	}
+	return false
+}
+
+func mutateDeployment(current *apps.Deployment, desired *apps.Deployment) {
 	// is this needed?
 	if !utils.AreMapsSame(current.Spec.Template.Spec.NodeSelector, desired.Spec.Template.Spec.NodeSelector) {
 		current.Spec.Template.Spec.NodeSelector = desired.Spec.Template.Spec.NodeSelector
-		different = true
 	}
 
 	// is this needed?
 	if !utils.AreTolerationsSame(current.Spec.Template.Spec.Tolerations, desired.Spec.Template.Spec.Tolerations) {
 		current.Spec.Template.Spec.Tolerations = desired.Spec.Template.Spec.Tolerations
-		different = true
 	}
 
 	if isDeploymentImageDifference(current, desired) {
 		current = updateCurrentDeploymentImages(current, desired)
-		different = true
 	}
 
-	if utils.AreResourcesDifferent(current, desired) {
-		different = true
-	}
+	_ = utils.AreResourcesDifferent(current, desired)
 
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
 		log.Info("Kibana replicas changed", "previous", *current.Spec.Replicas, "current", *desired.Spec.Replicas, "deployment", current.Name)
 		*current.Spec.Replicas = *desired.Spec.Replicas
-		different = true
 	}
 
-	if updateCurrentDeploymentEnvIfDifferent(current, desired) {
-		different = true
+	_ = updateCurrentDeploymentEnvIfDifferent(current, desired)
+
+	currentTrustedCAHash := current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
+	desiredTrustedCAHash := desired.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
+	if currentTrustedCAHash != desiredTrustedCAHash {
+		if current.Spec.Template.ObjectMeta.Annotations == nil {
+			current.Spec.Template.ObjectMeta.Annotations = map[string]string{}
+		}
+		current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName] = desiredTrustedCAHash
 	}
 
-	return current, different
+	for _, secretName := range []string{"kibana", "kibana-proxy"} {
+		hashKey := fmt.Sprintf("%s%s", constants.SecretHashPrefix, secretName)
+		currentHash := current.Spec.Template.ObjectMeta.Annotations[hashKey]
+		desiredHash := desired.Spec.Template.ObjectMeta.Annotations[hashKey]
+
+		if currentHash != desiredHash {
+			if current.Spec.Template.ObjectMeta.Annotations == nil {
+				current.Spec.Template.ObjectMeta.Annotations = map[string]string{}
+			}
+			current.Spec.Template.ObjectMeta.Annotations[hashKey] = desiredHash
+		}
+	}
 }
 
 func isDeploymentImageDifference(current *apps.Deployment, desired *apps.Deployment) bool {
