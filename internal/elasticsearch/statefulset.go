@@ -288,7 +288,7 @@ func (n *statefulSetNode) create() error {
 
 func (n *statefulSetNode) executeUpdate() error {
 	compareFunc := func(current, desired *apps.StatefulSet) bool {
-		return pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
+		return pod.ArePodTemplateSpecEqual(current.Spec.Template, desired.Spec.Template)
 	}
 
 	mutateFunc := func(current, desired *apps.StatefulSet) {
@@ -347,7 +347,7 @@ func (n *statefulSetNode) isChanged() bool {
 		return false
 	}
 
-	return pod.ArePodTemplateSpecDifferent(sts.Spec.Template, n.self.Spec.Template)
+	return !pod.ArePodTemplateSpecEqual(sts.Spec.Template, n.self.Spec.Template)
 }
 
 func (n *statefulSetNode) progressNodeChanges() error {

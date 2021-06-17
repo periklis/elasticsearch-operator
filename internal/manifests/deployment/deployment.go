@@ -15,7 +15,7 @@ import (
 )
 
 // CompareFunc is the type for functions that compare two deployments.
-// Return true if two deployment are not not equal.
+// Return true if two deployment are equal.
 type CompareFunc func(current, desired *appsv1.Deployment) bool
 
 // MutateFunc is the type for functions that mutate the current deployment
@@ -65,7 +65,7 @@ func Update(ctx context.Context, c client.Client, dpl *appsv1.Deployment, cmp Co
 		)
 	}
 
-	if cmp(current, dpl) {
+	if !cmp(current, dpl) {
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			if err := c.Get(ctx, key, current); err != nil {
 				log.Error(err, "failed to get deployment", dpl.Name)

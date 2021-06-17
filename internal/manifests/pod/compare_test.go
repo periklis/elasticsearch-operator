@@ -91,7 +91,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize podtemplates as the same", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -109,7 +109,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize an image name change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -128,7 +128,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a nodeSelector change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -147,7 +147,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -175,7 +175,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -205,7 +205,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -224,7 +224,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -251,7 +251,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -270,7 +270,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -296,7 +296,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -315,7 +315,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -341,7 +341,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("shouldn't recognize a volume change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeFalse())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeFalse())
 		})
 	})
 
@@ -364,7 +364,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a toleration change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -386,7 +386,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize an env var literal change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -412,7 +412,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize an env var fromValue change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -430,7 +430,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize an args change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -454,7 +454,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize an volumemounts change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -479,7 +479,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a ports change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -499,7 +499,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a cpu limits change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -519,7 +519,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a cpu requests change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -540,7 +540,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a cpu limits change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -561,7 +561,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a cpu requests change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -581,7 +581,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a memory limits change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -601,7 +601,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a memory requests change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -622,7 +622,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a memory limits change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -643,7 +643,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a memory requests change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -699,7 +699,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a request memory change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 
@@ -755,7 +755,7 @@ var _ = Describe("podtemplate", func() {
 		})
 
 		It("should recognize a limit memory change", func() {
-			Expect(ArePodTemplateSpecDifferent(lhs, rhs)).To(BeTrue())
+			Expect(ArePodTemplateSpecEqual(lhs, rhs)).To(BeTrue())
 		})
 	})
 })

@@ -8,28 +8,28 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// ArePodTemplateSpecDifferent compares two corev1.PodTemplateSpec objects
-// and returns true only if pod spec differ and tolerations are strictly the same
-func ArePodTemplateSpecDifferent(lhs, rhs corev1.PodTemplateSpec) bool {
-	return ArePodSpecDifferent(lhs.Spec, rhs.Spec, true)
+// ArePodTemplateSpecEqual compares two corev1.PodTemplateSpec objects
+// and returns true only if pod spec are equal and tolerations are strictly the same
+func ArePodTemplateSpecEqual(lhs, rhs corev1.PodTemplateSpec) bool {
+	return ArePodSpecEqual(lhs.Spec, rhs.Spec, true)
 }
 
-// ArePodSpecDifferent compares two corev1.PodSpec objects and returns true
-// only if they differ in any of the following:
+// ArePodSpecEqual compares two corev1.PodSpec objects and returns true
+// only if they are equal in any of the following:
 // - Length of containers slice
 // - Node selectors
 // - Tolerations, if strict they need to be the same, non-strict for superset check
 // - Containers: Name, Image, VolumeMounts, EnvVar, Args, Ports, ResourceRequirements
-func ArePodSpecDifferent(lhs, rhs corev1.PodSpec, strictTolerations bool) bool {
-	changed := false
+func ArePodSpecEqual(lhs, rhs corev1.PodSpec, strictTolerations bool) bool {
+	equal := true
 
 	if len(lhs.Containers) != len(rhs.Containers) {
-		changed = true
+		equal = false
 	}
 
 	// check nodeselectors
 	if !comparators.AreSelectorsSame(lhs.NodeSelector, rhs.NodeSelector) {
-		changed = true
+		equal = false
 	}
 
 	// strictTolerations are for when we compare from the deployments or statefulsets
@@ -38,12 +38,12 @@ func ArePodSpecDifferent(lhs, rhs corev1.PodSpec, strictTolerations bool) bool {
 	if strictTolerations {
 		// check tolerations
 		if !comparators.AreTolerationsSame(lhs.Tolerations, rhs.Tolerations) {
-			changed = true
+			equal = false
 		}
 	} else {
 		// check tolerations
 		if !comparators.ContainsSameTolerations(lhs.Tolerations, rhs.Tolerations) {
-			changed = true
+			equal = false
 		}
 	}
 
@@ -62,33 +62,34 @@ func ArePodSpecDifferent(lhs, rhs corev1.PodSpec, strictTolerations bool) bool {
 			// can't use reflect.DeepEqual here, due to k8s adding token mounts
 			// check that rContainer is all found within lContainer and that they match by name
 			if !comparators.ContainsSameVolumeMounts(lContainer.VolumeMounts, rContainer.VolumeMounts) {
-				changed = true
+				equal = false
 			}
 
 			if lContainer.Image != rContainer.Image {
-				changed = true
+				equal = false
 			}
 
 			if !comparators.EnvValueEqual(lContainer.Env, rContainer.Env) {
-				changed = true
+				equal = false
 			}
 
 			if !reflect.DeepEqual(lContainer.Args, rContainer.Args) {
-				changed = true
+				equal = false
 			}
 
 			if !reflect.DeepEqual(lContainer.Ports, rContainer.Ports) {
-				changed = true
+				equal = false
 			}
 
 			if !comparators.AreResourceRequementsSame(lContainer.Resources, rContainer.Resources) {
-				changed = true
+				equal = false
 			}
 		}
 
 		if !found {
-			changed = true
+			equal = false
 		}
 	}
-	return changed
+
+	return equal
 }

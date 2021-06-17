@@ -328,17 +328,17 @@ func (clusterRequest *KibanaRequest) getKibanaAnnotations(deployment *apps.Deplo
 }
 
 func compareDeployments(current, desired *apps.Deployment) bool {
-	if pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template) {
-		return true
+	if !pod.ArePodTemplateSpecEqual(current.Spec.Template, desired.Spec.Template) {
+		return false
 	}
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
-		return true
+		return false
 	}
 
 	currentTrustedCAHash := current.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
 	desiredTrustedCAHash := desired.Spec.Template.ObjectMeta.Annotations[constants.TrustedCABundleHashName]
 	if currentTrustedCAHash != desiredTrustedCAHash {
-		return true
+		return false
 	}
 
 	for _, secretName := range []string{"kibana", "kibana-proxy"} {
@@ -347,14 +347,14 @@ func compareDeployments(current, desired *apps.Deployment) bool {
 		desiredHash := desired.Spec.Template.ObjectMeta.Annotations[hashKey]
 
 		if currentHash != desiredHash {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func mutateDeployment(current *apps.Deployment, desired *apps.Deployment) {
-	if pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template) {
+	if !pod.ArePodTemplateSpecEqual(current.Spec.Template, desired.Spec.Template) {
 		current.Spec.Template.Spec.NodeSelector = desired.Spec.Template.Spec.NodeSelector
 		current.Spec.Template.Spec.Tolerations = desired.Spec.Template.Spec.Tolerations
 	}

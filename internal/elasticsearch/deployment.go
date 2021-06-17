@@ -186,12 +186,8 @@ func (node *deploymentNode) nodeRevision() string {
 }
 
 func (node *deploymentNode) waitForNodeRollout() error {
-	podLabels := map[string]string{
-		"node-name": node.name(),
-	}
-
 	err := wait.Poll(time.Second*1, time.Second*30, func() (done bool, err error) {
-		return node.checkPodSpecMatches(podLabels), nil
+		return node.podSpecMatches(), nil
 	})
 	return err
 }
@@ -212,12 +208,12 @@ func (node *deploymentNode) checkPodSpecMatches(labels map[string]string) bool {
 	}
 
 	for _, p := range podList {
-		if !pod.ArePodSpecDifferent(p.Spec, node.self.Spec.Template.Spec, false) {
-			return true
+		if !pod.ArePodSpecEqual(p.Spec, node.self.Spec.Template.Spec, false) {
+			return false
 		}
 	}
 
-	return false
+	return true
 }
 
 func (node *deploymentNode) pause() error {
@@ -254,7 +250,7 @@ func (node *deploymentNode) setPaused(paused bool) error {
 }
 
 func (node *deploymentNode) setReplicaCount(replicas int32) error {
-	compareFunc := func(_, _ *apps.Deployment) bool { return true }
+	compareFunc := func(_, _ *apps.Deployment) bool { return false }
 	mutateFunc := func(current, _ *apps.Deployment) {
 		current.Spec.Replicas = &replicas
 	}
@@ -321,7 +317,7 @@ func (node *deploymentNode) isMissing() bool {
 
 func (node *deploymentNode) executeUpdate() error {
 	compareFunc := func(current, desired *apps.Deployment) bool {
-		return pod.ArePodTemplateSpecDifferent(current.Spec.Template, desired.Spec.Template)
+		return pod.ArePodTemplateSpecEqual(current.Spec.Template, desired.Spec.Template)
 	}
 
 	mutateFunc := func(current, desired *apps.Deployment) {
@@ -398,5 +394,5 @@ func (node *deploymentNode) isChanged() bool {
 		return false
 	}
 
-	return pod.ArePodTemplateSpecDifferent(current.Spec.Template, node.self.Spec.Template)
+	return !pod.ArePodTemplateSpecEqual(current.Spec.Template, node.self.Spec.Template)
 }
