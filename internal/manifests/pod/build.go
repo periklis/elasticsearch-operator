@@ -1,6 +1,8 @@
 package pod
 
 import (
+	"time"
+
 	"github.com/openshift/elasticsearch-operator/internal/utils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -44,5 +46,18 @@ func (b *Builder) WithTolerations(t ...corev1.Toleration) *Builder {
 // WithAffinity sets the affinity rule for the podspec
 func (b *Builder) WithAffinity(a *corev1.Affinity) *Builder {
 	b.spec.Affinity = a
+	return b
+}
+
+// WithRestartPolicy sets the restart policy for the podspec
+func (b *Builder) WithRestartPolicy(rp corev1.RestartPolicy) *Builder {
+	b.spec.RestartPolicy = rp
+	return b
+}
+
+// WithTerminationGracePeriodSeconds sets the termination grace period for the podspec
+func (b *Builder) WithTerminationGracePeriodSeconds(p time.Duration) *Builder {
+	d := int64(p.Seconds())
+	b.spec.TerminationGracePeriodSeconds = &d
 	return b
 }

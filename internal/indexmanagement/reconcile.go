@@ -8,20 +8,16 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ViaQ/logerr/kverrors"
 	"github.com/go-logr/logr"
-	batchv1 "k8s.io/api/batch/v1"
 	batch "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/ViaQ/logerr/log"
 	apis "github.com/openshift/elasticsearch-operator/apis/logging/v1"
@@ -29,8 +25,9 @@ import (
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch/esclient"
 	"github.com/openshift/elasticsearch-operator/internal/manifests/configmap"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/cronjob"
+	"github.com/openshift/elasticsearch-operator/internal/manifests/pod"
 	esapi "github.com/openshift/elasticsearch-operator/internal/types/elasticsearch"
-	"github.com/openshift/elasticsearch-operator/internal/utils"
 	"github.com/openshift/elasticsearch-operator/internal/utils/comparators"
 )
 
@@ -41,10 +38,10 @@ const (
 )
 
 var (
-	defaultCPURequest      = resource.MustParse("100m")
-	defaultMemoryRequest   = resource.MustParse("32Mi")
-	jobHistoryLimitFailed  = utils.GetInt32(1)
-	jobHistoryLimitSuccess = utils.GetInt32(1)
+	defaultCPURequest            = resource.MustParse("100m")
+	defaultMemoryRequest         = resource.MustParse("32Mi")
+	jobHistoryLimitFailed  int32 = 1
+	jobHistoryLimitSuccess int32 = 1
 
 	millisPerSecond = uint64(1000)
 	millisPerMinute = uint64(60 * millisPerSecond)
@@ -209,34 +206,23 @@ func (imr *IndexManagementRequest) removeCronJobsForMappings(mappings []apis.Ind
 		expected.Insert(fmt.Sprintf("%s-im-%s", imr.cluster.Name, mapping.Name))
 	}
 
-	cronList := &batch.CronJobList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(imr.cluster.Namespace),
-		client.MatchingLabels(imLabels),
-	}
-	if err := imr.client.List(context.TODO(), cronList, listOpts...); err != nil {
+	cronList, err := cronjob.List(context.TODO(), imr.client, imr.cluster.Namespace, imLabels)
+	if err != nil {
 		return kverrors.Wrap(err, "failed to list cron jobs",
 			"namespace", imr.cluster.Namespace,
 			"labels", imLabels,
 		)
 	}
+
 	existing := sets.NewString()
-	for _, cron := range cronList.Items {
+	for _, cron := range cronList {
 		existing.Insert(cron.Name)
 	}
+
 	difference := existing.Difference(expected)
 	for _, name := range difference.List() {
-		cronjob := &batch.CronJob{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "CronJob",
-				APIVersion: batch.SchemeGroupVersion.String(),
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: imr.cluster.Namespace,
-			},
-		}
-		err := imr.client.Delete(context.TODO(), cronjob)
+		key := client.ObjectKey{Name: name, Namespace: imr.cluster.Namespace}
+		err := cronjob.Delete(context.TODO(), imr.client, key)
 		if err != nil && !apierrors.IsNotFound(err) {
 			log.Error(err, "failed to remove cronjob", "namespace", imr.cluster.Namespace, "name", name)
 		}
@@ -311,7 +297,22 @@ func (imr *IndexManagementRequest) reconcileIndexManagementCronjob(policy apis.I
 	desired := newCronJob(imr.cluster.Name, imr.cluster.Namespace, name, schedule, script, imr.cluster.Spec.Spec.NodeSelector, imr.cluster.Spec.Spec.Tolerations, envvars)
 
 	imr.cluster.AddOwnerRefTo(desired)
-	return imr.reconcileCronJob(desired, areCronJobsSame)
+
+	res, err := cronjob.CreateOrUpdate(context.TODO(), imr.client, desired, areCronJobsSame, cronjob.Mutate)
+	if err != nil {
+		return kverrors.Wrap(err, "failed to create or update cronjob",
+			"cluster", desired.Name,
+			"namespace", desired.Namespace,
+		)
+	}
+
+	log.Info(fmt.Sprintf("Successfully reconcild index management cronjob: %s", res),
+		"cronjob_name", desired.Name,
+		"cluster", imr.cluster.Name,
+		"namespace", imr.cluster.Namespace,
+	)
+
+	return nil
 }
 
 func formatCmd(policy apis.IndexManagementPolicySpec) string {
@@ -331,33 +332,6 @@ func formatCmd(policy apis.IndexManagementPolicySpec) string {
 	cmd = append(cmd, fmt.Sprintf("$(%s)", strings.Join(result, "&&")))
 	script := strings.Join(cmd, ";")
 	return script
-}
-
-func (imr *IndexManagementRequest) reconcileCronJob(desired *batch.CronJob, fnAreCronJobsSame func(lhs, rhs *batch.CronJob) bool) error {
-	err := imr.client.Create(context.TODO(), desired)
-	if err == nil {
-		return nil
-	}
-	if !apierrors.IsAlreadyExists(err) {
-		return kverrors.Wrap(err, "failed to create cronjob for cluster",
-			"namespace", imr.cluster.Namespace,
-			"cluster", imr.cluster.Name)
-	}
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current := &batch.CronJob{}
-		retryError := imr.client.Get(context.TODO(), types.NamespacedName{Name: desired.Name, Namespace: desired.Namespace}, current)
-		if retryError != nil {
-			return retryError
-		}
-		if !fnAreCronJobsSame(current, desired) {
-			current.Spec = desired.Spec
-			return imr.client.Update(context.TODO(), current)
-		}
-		return nil
-	})
-	return kverrors.Wrap(err, "failed to update cronjob for cluster",
-		"namespace", desired.Namespace,
-		"cluster", desired.Name)
 }
 
 func areCronJobsSame(lhs, rhs *batch.CronJob) bool {
@@ -442,49 +416,46 @@ func newContainer(clusterName, name, image, scriptPath string, envvars []corev1.
 
 func newCronJob(clusterName, namespace, name, schedule, script string, nodeSelector map[string]string, tolerations []corev1.Toleration, envvars []corev1.EnvVar) *batch.CronJob {
 	containerName := "indexmanagement"
-	podSpec := corev1.PodSpec{
-		ServiceAccountName: clusterName,
-		Containers:         []corev1.Container{newContainer(clusterName, containerName, constants.PackagedElasticsearchImage(), script, envvars)},
-		Volumes: []corev1.Volume{
-			{Name: "certs", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: clusterName}}},
-			{Name: "scripts", VolumeSource: corev1.VolumeSource{ConfigMap: &corev1.ConfigMapVolumeSource{LocalObjectReference: corev1.LocalObjectReference{Name: indexManagementConfigmap}, DefaultMode: &fullExecMode}}},
-		},
-		NodeSelector:                  utils.EnsureLinuxNodeSelector(nodeSelector),
-		Tolerations:                   tolerations,
-		RestartPolicy:                 corev1.RestartPolicyNever,
-		TerminationGracePeriodSeconds: utils.GetInt64(300),
+	containers := []corev1.Container{
+		newContainer(clusterName, containerName, constants.PackagedElasticsearchImage(), script, envvars),
 	}
-	cronJob := &batch.CronJob{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "CronJob",
-			APIVersion: batch.SchemeGroupVersion.String(),
+	volumes := []corev1.Volume{
+		{
+			Name: "certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: clusterName,
+				},
+			},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    imLabels,
-		},
-		Spec: batch.CronJobSpec{
-			ConcurrencyPolicy:          batch.ForbidConcurrent,
-			SuccessfulJobsHistoryLimit: jobHistoryLimitSuccess,
-			FailedJobsHistoryLimit:     jobHistoryLimitFailed,
-			Schedule:                   schedule,
-			JobTemplate: batch.JobTemplateSpec{
-				Spec: batchv1.JobSpec{
-					BackoffLimit: utils.GetInt32(0),
-					Parallelism:  utils.GetInt32(1),
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      containerName,
-							Namespace: namespace,
-							Labels:    imLabels,
-						},
-						Spec: podSpec,
+		{
+			Name: "scripts",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: indexManagementConfigmap,
 					},
+					DefaultMode: &fullExecMode,
 				},
 			},
 		},
 	}
 
-	return cronJob
+	podSpec := pod.NewSpec(clusterName, containers, volumes).
+		WithNodeSelectors(nodeSelector).
+		WithTolerations(tolerations...).
+		WithRestartPolicy(corev1.RestartPolicyNever).
+		WithRestartPolicy(corev1.RestartPolicyNever).
+		WithTerminationGracePeriodSeconds(300 * time.Second).
+		Build()
+
+	return cronjob.New(name, namespace, imLabels).
+		WithConcurrencyPolicy(batch.ForbidConcurrent).
+		WithSuccessfulJobsHistoryLimit(jobHistoryLimitSuccess).
+		WithFailedJobsHistoryLimit(jobHistoryLimitFailed).
+		WithSchedule(schedule).
+		WithBackoffLimit(0).
+		WithParallelism(1).
+		WithPodSpec(containerName, podSpec).
+		Build()
 }

@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	apis "github.com/openshift/elasticsearch-operator/apis/logging/v1"
-	fakeruntime "github.com/openshift/elasticsearch-operator/test/helpers/runtime"
 )
 
 var _ = Describe("Index Management", func() {
@@ -22,7 +21,6 @@ var _ = Describe("Index Management", func() {
 	var (
 		primaryShards = int32(1)
 		apiclient     client.Client
-		testclient    *fakeruntime.FakeClient
 		cluster       *apis.Elasticsearch
 		policy        apis.IndexManagementPolicySpec
 		mapping       apis.IndexManagementPolicyMappingSpec
@@ -76,55 +74,6 @@ var _ = Describe("Index Management", func() {
 				policy.Phases.Delete = &apis.IndexManagementDeletePhaseSpec{}
 				policy.Phases.Hot = &apis.IndexManagementHotPhaseSpec{}
 				Expect(formatCmd(policy)).To(Equal("./delete;delete_rc=$?;./rollover;rollover_rc=$?;$(exit $delete_rc&&exit $rollover_rc)"))
-			})
-		})
-	})
-	Describe("#reconcileCronJob", func() {
-		fnCronsAreSame := func(lhs, rhs *batch.CronJob) bool {
-			return true
-		}
-		Describe("when trying to create the cronjob", func() {
-			Context("and does not error", func() {
-				It("should return without error", func() {
-					apiclient = fake.NewFakeClient(cronjob)
-					imr := &IndexManagementRequest{client: apiclient, cluster: cluster}
-					err := imr.reconcileCronJob(cronjob, fnCronsAreSame)
-					Expect(err).To(BeNil(), fmt.Sprintf("Error: %v", err))
-				})
-			})
-			Context("and errors for reasons other then already existing", func() {
-				It("should return the error", func() {
-					imr := &IndexManagementRequest{client: apiclient, cluster: cluster}
-					err := imr.reconcileCronJob(cronjob, fnCronsAreSame)
-					Expect(err).To(BeNil())
-				})
-			})
-			Context("and errors because it already exists", func() {
-				Context("and the current is the same as desired", func() {
-					It("should not try to update the cronjob", func() {
-						apiclient = fake.NewFakeClient(cronjob)
-						testclient = fakeruntime.NewFakeClient(apiclient, fakeruntime.NewAlreadyExistsException())
-						apiclient = testclient
-						imr := &IndexManagementRequest{client: apiclient, cluster: cluster}
-						err := imr.reconcileCronJob(cronjob, fnCronsAreSame)
-						Expect(err).To(BeNil(), fmt.Sprintf("Error: %v", err))
-						Expect(testclient.WasUpdated(cronjob.Name)).To(BeFalse(), "Exp. to not try and update the cronjob")
-					})
-				})
-				Context("when the current is different from the desired", func() {
-					It("should update the cronjob", func() {
-						cronjob.Spec.Schedule = "*/5 10 * * * *"
-						apiclient = fake.NewFakeClient(cronjob)
-						testclient = fakeruntime.NewFakeClient(apiclient, fakeruntime.NewAlreadyExistsException())
-						apiclient = testclient
-						imr := &IndexManagementRequest{client: apiclient, cluster: cluster}
-						err := imr.reconcileCronJob(cronjob, func(lhs, rhs *batch.CronJob) bool {
-							return false
-						})
-						Expect(err).To(BeNil(), fmt.Sprintf("Error: %v", err))
-						Expect(testclient.WasUpdated(cronjob.Name)).To(BeTrue(), "Exp. to update the cronjob")
-					})
-				})
 			})
 		})
 	})
