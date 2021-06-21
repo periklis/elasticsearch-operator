@@ -24,7 +24,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateServiceAccount() (err error) {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch serviceaccount: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch serviceaccount: %s", res),
 		"service_account_name", sa.Name,
 		"cluster", dpl.Name,
 		"namespace", dpl.Namespace,

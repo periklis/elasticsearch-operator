@@ -102,7 +102,7 @@ func (er *ElasticsearchRequest) createOrUpdateService(serviceName, namespace, cl
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch service: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch service: %s", res),
 		"service_name", svc.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,

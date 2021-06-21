@@ -71,7 +71,7 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaRoute() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled kibana route: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled kibana route: %s", res),
 		"route_name", rt.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,
@@ -97,7 +97,7 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaConsoleLink() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled kibana consolelink: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled kibana consolelink: %s", res),
 		"console_link_name", cl.Name,
 		"cluster", cluster.Name,
 	)
@@ -150,7 +150,7 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaConsoleExternalLogLink(
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled kibana external log link: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled kibana external log link: %s", res),
 		"console_external_log_link_name", consoleExternalLogLink.Name,
 		"cluster", cluster.Name,
 	)

@@ -264,7 +264,7 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaDeployment(proxyConfig 
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled kibana deployment: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled kibana deployment: %s", res),
 		"deployment_name", kibanaDeployment.Name,
 		"cluster", clusterRequest.cluster.Name,
 		"namespace", clusterRequest.cluster.Namespace,
@@ -452,7 +452,7 @@ func (clusterRequest *KibanaRequest) createOrUpdateKibanaService() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled kibana service: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled kibana service: %s", res),
 		"service_name", svc.Name,
 		"cluster", clusterRequest.cluster.Name,
 		"namespace", clusterRequest.cluster.Namespace,

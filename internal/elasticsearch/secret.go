@@ -29,7 +29,7 @@ func CreateOrUpdateSecretWithOwnerRef(secretName, namespace string, data map[str
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
 		"secret_name", s.Name,
 		"owner_ref_name", ownerRef.Name,
 	)
@@ -45,7 +45,7 @@ func CreateOrUpdateSecret(secretName, namespace string, data map[string][]byte, 
 		return kverrors.Wrap(err, "failed to create or update elasticsearch secret")
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch secret: %s", res),
 		"secret_name", s.Name,
 	)
 

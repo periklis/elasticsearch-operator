@@ -631,7 +631,7 @@ func newVolumeSource(clusterName, nodeName, namespace string, node api.Elasticse
 		log.Error(err, "Unable to create PersistentVolumeClaim")
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch persistentvolumeclaim: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch persistentvolumeclaim: %s", res),
 		"persistent_volume_claim_name", claimName,
 		"cluster", clusterName,
 		"namespace", namespace,

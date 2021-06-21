@@ -183,7 +183,7 @@ func (n *statefulSetNode) setPartition(partitions int32) error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
 		"node_statefulset_name", n.self.Name,
 		"cluster", n.clusterName,
 		"namespace", n.self.Namespace,
@@ -218,7 +218,7 @@ func (n *statefulSetNode) setReplicaCount(replicas int32) error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
 		"node_statefulset_name", n.self.Name,
 		"cluster", n.clusterName,
 		"namespace", n.self.Namespace,
@@ -270,7 +270,7 @@ func (n *statefulSetNode) create() error {
 			}
 		}
 
-		log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+		log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
 			"node_statefulset_name", n.self.Name,
 			"cluster", n.clusterName,
 			"namespace", n.self.Namespace,
@@ -302,7 +302,7 @@ func (n *statefulSetNode) executeUpdate() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node statefulset: %s", res),
 		"node_statefulset_name", n.self.Name,
 		"cluster", n.clusterName,
 		"namespace", n.self.Namespace,

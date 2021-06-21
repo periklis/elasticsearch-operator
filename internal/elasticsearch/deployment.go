@@ -137,7 +137,7 @@ func (node *deploymentNode) create() error {
 			}
 		}
 
-		log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+		log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
 			"node_deployment_name", node.self.Name,
 			"cluster", node.clusterName,
 			"namespace", node.self.Namespace,
@@ -238,7 +238,7 @@ func (node *deploymentNode) setPaused(paused bool) error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
 		"node_deployment_name", node.self.Name,
 		"cluster", node.clusterName,
 		"namespace", node.self.Namespace,
@@ -263,7 +263,7 @@ func (node *deploymentNode) setReplicaCount(replicas int32) error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
 		"node_deployment_name", node.self.Name,
 		"cluster", node.clusterName,
 		"namespace", node.self.Namespace,
@@ -332,7 +332,7 @@ func (node *deploymentNode) executeUpdate() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch node deployment: %s", res),
 		"node_deployment_name", node.self.Name,
 		"cluster", node.clusterName,
 		"namespace", node.self.Namespace,

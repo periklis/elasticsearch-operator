@@ -68,7 +68,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateServiceMonitors() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch servicemonitor: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch servicemonitor: %s", res),
 		"service_monitor_name", monitor.Name,
 		"cluster", er.cluster.Name,
 		"namespace", er.cluster.Namespace,

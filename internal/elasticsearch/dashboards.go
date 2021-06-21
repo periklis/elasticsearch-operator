@@ -54,7 +54,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateDashboards() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch dashboard config map: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch dashboard config map: %s", res),
 		"configmap_name", cm.Name,
 		"cluster", er.cluster.Name,
 		"namespace", er.cluster.Namespace,

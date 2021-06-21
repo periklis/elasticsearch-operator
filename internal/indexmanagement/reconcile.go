@@ -243,7 +243,7 @@ func createOrUpdateCurationConfigmap(apiclient client.Client, cluster *apis.Elas
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled index management config map: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled index management config map: %s", res),
 		"configmap_name", desired.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,
@@ -306,7 +306,7 @@ func (imr *IndexManagementRequest) reconcileIndexManagementCronjob(policy apis.I
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconcild index management cronjob: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconcild index management cronjob: %s", res),
 		"cronjob_name", desired.Name,
 		"cluster", imr.cluster.Name,
 		"namespace", imr.cluster.Namespace,

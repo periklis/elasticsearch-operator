@@ -42,7 +42,7 @@ func (er *ElasticsearchRequest) CreateOrUpdatePrometheusRules() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch prometheusrule: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch prometheusrule: %s", res),
 		"prometheus_rule_name", rule.Name,
 		"cluster", er.cluster.Name,
 		"namespace", er.cluster.Namespace,

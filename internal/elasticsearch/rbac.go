@@ -45,7 +45,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateRBAC() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch clusterrole: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch clusterrole: %s", res),
 		"cluster_role_name", elasticsearchRole.Name,
 		"cluster", dpl.Name,
 		"namespace", dpl.Namespace,
@@ -71,7 +71,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateRBAC() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch clusterrolebinding: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch clusterrolebinding: %s", res),
 		"cluster_role_binding_name",
 		elasticsearchRoleBinding.Name,
 		"cluster", dpl.Name,
@@ -107,7 +107,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateRBAC() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch proxy clusterrole: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch proxy clusterrole: %s", res),
 		"cluster_role_name", proxyRole.Name,
 		"cluster", dpl.Name,
 		"namespace", dpl.Namespace,
@@ -144,7 +144,7 @@ func (er *ElasticsearchRequest) CreateOrUpdateRBAC() error {
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch proxy clusterrolebinding: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch proxy clusterrolebinding: %s", res),
 		"cluster_role_binding_name",
 		proxyRoleBinding.Name,
 		"cluster", dpl.Name,
@@ -180,7 +180,7 @@ func reconcileIndexManagmentRbac(cluster *v1.Elasticsearch, client client.Client
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch index management role: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch index management role: %s", res),
 		"role_name", role.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,
@@ -208,7 +208,7 @@ func reconcileIndexManagmentRbac(cluster *v1.Elasticsearch, client client.Client
 		)
 	}
 
-	log.Info(fmt.Sprintf("Successfully reconciled elasticsearch index management rolebinding: %s", res),
+	log.V(1).Info(fmt.Sprintf("Successfully reconciled elasticsearch index management rolebinding: %s", res),
 		"role_binding_name", roleBinding.Name,
 		"cluster", cluster.Name,
 		"namespace", cluster.Namespace,
