@@ -147,9 +147,7 @@ func (node *deploymentNode) create() error {
 		}
 
 		// update the hashmaps
-		key := client.ObjectKey{Name: node.clusterName, Namespace: node.self.Namespace}
-		node.configmapHash = configmap.GetDataSHA256(context.TODO(), node.client, key, excludeConfigMapKeys)
-		node.secretHash = secret.GetDataSHA256(context.TODO(), node.client, key)
+		node.refreshHashes()
 	}
 
 	return node.pause()
@@ -366,12 +364,12 @@ func (node *deploymentNode) refreshHashes() {
 	key := client.ObjectKey{Name: node.clusterName, Namespace: node.self.Namespace}
 
 	newConfigmapHash := configmap.GetDataSHA256(context.TODO(), node.client, key, excludeConfigMapKeys)
-	if newConfigmapHash != node.configmapHash {
+	if newConfigmapHash != "" && newConfigmapHash != node.configmapHash {
 		node.configmapHash = newConfigmapHash
 	}
 
 	newSecretHash := secret.GetDataSHA256(context.TODO(), node.client, key)
-	if newSecretHash != node.secretHash {
+	if newSecretHash != "" && newSecretHash != node.secretHash {
 		node.secretHash = newSecretHash
 	}
 }

@@ -266,9 +266,7 @@ func (n *statefulSetNode) create() error {
 		}
 
 		// update the hashmaps
-		key := client.ObjectKey{Name: n.clusterName, Namespace: n.self.Namespace}
-		n.configmapHash = configmap.GetDataSHA256(context.TODO(), n.client, key, excludeConfigMapKeys)
-		n.secretHash = secret.GetDataSHA256(context.TODO(), n.client, key)
+		n.refreshHashes()
 	} else {
 		n.scale()
 	}
@@ -299,12 +297,12 @@ func (n *statefulSetNode) refreshHashes() {
 	key := client.ObjectKey{Name: n.clusterName, Namespace: n.self.Namespace}
 
 	newConfigmapHash := configmap.GetDataSHA256(context.TODO(), n.client, key, excludeConfigMapKeys)
-	if newConfigmapHash != n.configmapHash {
+	if newConfigmapHash != "" && newConfigmapHash != n.configmapHash {
 		n.configmapHash = newConfigmapHash
 	}
 
 	newSecretHash := secret.GetDataSHA256(context.TODO(), n.client, key)
-	if newSecretHash != n.secretHash {
+	if newSecretHash != "" && newSecretHash != n.secretHash {
 		n.secretHash = newSecretHash
 	}
 }
